@@ -1,0 +1,145 @@
+{
+  "project": {
+    "name": "PicksZone",
+    "description": "Premium, modern sports betting predictions platform and internal prop betting app with a community and comprehensive admin panel.",
+    "theme": "Dark",
+    "archetype": "Archetype 2: The Performance Pro",
+    "vibe": "Elite athleticism, precision, command-center focus, tactical minimalism."
+  },
+  "typography": {
+    "strategy": "High-contrast geometric athleticism for a premium sportsbook feel.",
+    "fonts": {
+      "headings": {
+        "family": "Barlow Condensed",
+        "weights": ["700", "900"],
+        "usage": "Hero texts, section headers, massive data numbers."
+      },
+      "body": {
+        "family": "Manrope",
+        "weights": ["400", "500", "600"],
+        "usage": "General body copy, UI text, descriptions."
+      },
+      "monospace": {
+        "family": "JetBrains Mono",
+        "weights": ["500", "700"],
+        "usage": "Odds tables, metrics, virtual coin balances, tipster yields."
+      }
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter uppercase leading-none font-black",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight uppercase font-bold",
+      "h3": "text-xl sm:text-2xl font-bold tracking-tight",
+      "h4": "text-lg sm:text-xl font-semibold",
+      "body": "text-base leading-relaxed text-zinc-300",
+      "small_label": "text-xs tracking-[0.2em] uppercase font-bold text-zinc-500",
+      "odds": "font-mono text-lg font-bold text-white tracking-tight"
+    }
+  },
+  "colors": {
+    "background": {
+      "base": "#050505",
+      "surface": "#121212",
+      "elevated": "#1A1A1A",
+      "modal": "#1E1E1E",
+      "overlay": "rgba(0, 0, 0, 0.7)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A",
+      "inverse": "#050505"
+    },
+    "brand": {
+      "primary": "#D4FF00",
+      "primary_hover": "#BBE600",
+      "secondary": "#007AFF",
+      "secondary_hover": "#005BB5"
+    },
+    "status": {
+      "success": "#00E676",
+      "win": "#00E676",
+      "danger": "#FF3B30",
+      "loss": "#FF3B30",
+      "warning": "#FFCC00",
+      "info": "#3399FF"
+    },
+    "border": {
+      "default": "#27272A",
+      "focus": "#007AFF",
+      "active": "#3F3F46"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Tactical Minimalism. Optimize for density in tables and dashboard grids, but use generous padding inside cards to prevent clutter.",
+    "grid_system": "Mode B: The 'Control Room' Grid",
+    "dashboard_grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6",
+    "card_padding": "p-6",
+    "section_spacing": "py-16 md:py-24",
+    "container_max": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "surfaces": {
+      "cards": "bg-[#121212] border border-zinc-800 rounded-lg shadow-none",
+      "headers": "backdrop-blur-xl bg-[#050505]/80 border-b border-zinc-800 z-50",
+      "inputs": "bg-[#0A0A0A] border border-zinc-800 text-white rounded-md focus:border-[#007AFF] focus:ring-1 focus:ring-[#007AFF]"
+    }
+  },
+  "components": {
+    "strategy": "Shadcn for interactive elements heavily customized to remove light-mode Vercel aesthetics. Use raw HTML/Tailwind for bento-box layouts and specific sports cards.",
+    "buttons": {
+      "primary": "bg-[#D4FF00] text-black font-bold uppercase tracking-wide hover:bg-[#BBE600] transition-colors rounded-md px-6 py-3",
+      "secondary": "bg-[#007AFF] text-white font-bold hover:bg-[#005BB5] transition-colors rounded-md px-6 py-3",
+      "outline": "border border-zinc-700 text-white hover:bg-zinc-800 hover:text-white transition-colors rounded-md px-6 py-3"
+    },
+    "prediction_card": {
+      "layout": "Flex column, clear separation of event details vs odds.",
+      "elements": "Sport icon, Team A vs Team B, Prediction Type (e.g., Over 2.5), Odds (Monospace), Tipster Avatar, Confidence Meter."
+    },
+    "prop_bet_card": {
+      "layout": "Dense bento box item.",
+      "elements": "Virtual Coin Stake input, Payout Calculator, Quick Bet buttons (Over/Under)."
+    },
+    "admin_panel": {
+      "layout": "Sidebar navigation (left) + Main Content area.",
+      "tables": "Dense rows, monospaced data cells, status badges (Approved/Pending), action dropdowns.",
+      "forms": "Use Shadcn Form, Input, Select. Left-aligned labels."
+    },
+    "banner_zones": {
+      "locations": ["Hero Top", "Feed Sidebar", "Between Feed Cards (every 5 items)", "Footer Sticky"],
+      "style": "Subtle border, 'Ad' badge in corner, interactive hover states."
+    }
+  },
+  "icons_and_assets": {
+    "library": "@phosphor-icons/react",
+    "installation": "yarn add @phosphor-icons/react",
+    "style": "Duotone or bold variants for high visibility on dark backgrounds."
+  },
+  "motion_and_interaction": {
+    "hover_states": "Interactive elements must lighten slightly on hover. No drastic color jumps. Active state scales down: active:scale-95.",
+    "focus_states": "Strict ring-2 ring-[#007AFF] on all form inputs and buttons for accessibility.",
+    "transitions": "transition-all duration-200 ease-out"
+  },
+  "media_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1769120062656-23adba3790b3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBncmVlbiUyMG5lb24lMjBncmlkfGVufDB8fHx8MTc3Nzc3ODE5OXww&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract neon green grid on dark background, used for Hero section with low opacity overlay."
+    },
+    "categories": {
+      "football": "https://images.unsplash.com/photo-1767916732786-a83902ffc25c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwzfHxldXJvcGVhbiUyMGZvb3RiYWxsJTIwc3RhZGl1bSUyMGFjdGlvbnxlbnwwfHx8fDE3Nzc3NzgxODh8MA&ixlib=rb-4.1.0&q=85",
+      "horse_racing": "https://images.unsplash.com/photo-1702465420628-240095a78f8d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwyfHxob3JzZSUyMHJhY2luZyUyMGFjdGlvbnxlbnwwfHx8fDE3Nzc2MjgwMjV8MA&ixlib=rb-4.1.0&q=85",
+      "baseball": "https://images.unsplash.com/photo-1772476053599-1dae60f56339?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxiYXNlYmFsbCUyMGdhbWUlMjBhY3Rpb258ZW58MHx8fHwxNzc3Nzc4MTg4fDA&ixlib=rb-4.1.0&q=85",
+      "lotteries": "https://images.unsplash.com/photo-1629723515744-9ece210b6ddd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwxfHxiaW5nbyUyMGxvdHRlcnklMjBiYWxsc3xlbnwwfHx8fDE3Nzc3NzgxOTl8MA&ixlib=rb-4.1.0&q=85"
+    },
+    "payment_methods": {
+      "zelle": "https://images.unsplash.com/photo-1653389527389-2bd025b7f5b0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHx6ZWxsZSUyMHBheW1lbnQlMjBsb2dvfGVufDB8fHx8MTc3Nzc3ODE5OXww&ixlib=rb-4.1.0&q=85",
+      "stripe": "https://images.unsplash.com/photo-1628760584600-6c31148991e9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwyfHxzdHJpcGUlMjBwYXltZW50JTIwbG9nb3xlbnwwfHx8fDE3Nzc3NzgyMDB8MA&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "instructions_to_main_agent": {
+    "1": "Strictly follow the color hex codes for the dark theme. Avoid standard generic colors. Use Neon Lime (#D4FF00) for primary CTAs like 'Bet Now' or 'Recharge', and Volt Blue for standard links.",
+    "2": "Apply 'data-testid' to ALL interactive elements (buttons, inputs, dropdowns) for testing (e.g., data-testid='place-bet-button').",
+    "3": "For the Admin Panel, implement a responsive Sidebar layout, and use Data Tables with monospaced text for numbers and amounts to ensure clean optical alignment.",
+    "4": "The app is bilingual (ES/EN). Integrate a straightforward localization structure or context wrapper.",
+    "5": "Do NOT use generic text placeholder images. Strictly use the provided URLs in 'media_urls' for sports categories and hero sections.",
+    "6": "Install required font families (Barlow Condensed, Manrope, JetBrains Mono) via Google Fonts in index.html.",
+    "7": "Do not center everything. Align content strictly to grids. Asymmetry and structured alignment create a premium feel."
+  }
+}
