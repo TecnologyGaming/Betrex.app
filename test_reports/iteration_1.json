@@ -1,0 +1,37 @@
+{
+  "summary": "PicksZone backend E2E suite - 24/24 tests passed on public URL. Covered auth (register/login/me/language/duplicate), public content (predictions/markets/banners/payment-methods/ranking), public PM NOT leaking config, push public-key, admin predictions/markets/payment-methods/banners CRUD, bet flow with won payout (1000->900->1090 verified), void-refund flow, settle authorization (403 for non-admin), recharge validation (amount $10 and $8000 rejected), recharge approve adds coins / reject no-op, duplicate-review blocked, admin users role/coins adjust, admin metrics shape, notifications send with no subscribers returns sent=0, and serialization check that no endpoint leaks Mongo _id.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/recharges", "issue": "Returns HTTP 422 (Pydantic) instead of 400 when amount<20 or >7000. Functional but inconsistent with other 400 validation errors."},
+      {"endpoint": "/api/auth/register", "issue": "Pydantic EmailStr rejects reserved TLDs (.test, .local). Minor - clients should use real domains."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_pickszone.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin_set_role / admin_adjust_coins accept raw dict body - should use Pydantic models for validation consistency.",
+    "admin_adjust_coins does not check user exists nor prevent negative balance (delta -1000 on balance 0 would go negative). Consider adding guard.",
+    "Recharge min/max validated only via Pydantic Field (returns 422); consider explicit 400 with clear message to match other endpoints.",
+    "google_session stores Emergent session but does not check for duplicate session_token insert - unique index could cause 500 on retry (currently inserts new uuid session_id each time, relies on unique session_token).",
+    "CORS is configured with allow_credentials=True AND allow_origins=[\"*\"] which browsers reject together. Works here because allow_origin_regex='.*' takes effect, but it is non-standard; recommend explicit origin list.",
+    "No rate limiting / brute force protection on /api/auth/login.",
+    "server.py is ~900 lines; consider splitting into routers (auth, public, bets, admin) for maintainability.",
+    "serialize() is defined but inconsistently used (many endpoints strip _id via projection which is cleaner); document convention."
+  ],
+  "updated_files": [
+    "/app/backend/tests/__init__.py",
+    "/app/backend/tests/test_pickszone.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "test_credentials": "admin@pickszone.com / Admin1234! (confirmed working, returns role=admin)",
+  "seed_data_creation": "Several TEST_ prefixed users/markets/banners/payment_methods created during run. Markets/banners/pms cleaned where possible; test users remain (documented).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use @example.com (NOT .test/.local) for Pydantic EmailStr. Cookies are sameSite=none+secure; requests.Session cookiejar works fine against public HTTPS URL. Market settle is idempotent-blocked (already-settled returns 400). void settle = empty winning_label refunds bets. Test suite at /app/backend/tests/test_pickszone.py is reusable - run: `pytest /app/backend/tests/test_pickszone.py -v`.",
+  "rca of the issue": "N/A - no functional bugs found. Initial 11 test errors/failures were due to test script using .test TLD which pydantic EmailStr rejects; fixed by using @example.com."
+}
