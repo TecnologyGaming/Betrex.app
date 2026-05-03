@@ -35,6 +35,7 @@ Usuario solicitó una app inspirada en BetsWall (Google Play) con: sección de p
 - Recharges: `POST /api/recharges`, `GET /api/recharges/me`
 - Push: `GET /api/push/public-key`, `POST /api/push/subscribe`
 - Admin: full CRUD for predictions, markets (with settle that pays winners + refunds void), payment methods, banners, recharges (approve/reject), users (role/coins), notifications send, metrics dashboard
+- **Odds API integration (The Odds API v4)**: `POST /api/admin/odds/sync` (manual), `GET/PATCH /api/admin/odds/config`, `GET /api/admin/odds/sports`. Auto-imports events from Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, MLB. Creates predictions (best home moneyline) + 2 markets per event (1X2 result + Over/Under totals). Background loop runs every N hours per config. First import: 91 predictions + 182 markets from real bookmaker odds.
 - VAPID keys generated and stored in backend `.env`
 - MongoDB indexes on email/user_id/market_id/banner_id/etc
 

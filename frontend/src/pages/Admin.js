@@ -6,6 +6,7 @@ import { useLang } from "../contexts/LanguageContext";
 import {
   ChartBar, ListChecks, Lightning, Image as ImageIcon, Money,
   CurrencyDollar, Users, Megaphone, Plus, PencilSimple, TrashSimple, Check, X,
+  CloudArrowDown,
 } from "@phosphor-icons/react";
 
 const SPORTS = ["football", "horse", "baseball", "lottery"];
@@ -577,11 +578,180 @@ function NotificationsTab() {
   );
 }
 
+// ---- Odds API tab ----
+function OddsTab() {
+  const { lang } = useLang();
+  const [cfg, setCfg] = useState(null);
+  const [sports, setSports] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [creatingPreds, setCreatingPreds] = useState(true);
+  const [creatingMkts, setCreatingMkts] = useState(true);
+
+  const load = useCallback(async () => {
+    const [{ data: c }, { data: s }] = await Promise.all([
+      api.get("/admin/odds/config"),
+      api.get("/admin/odds/sports").catch(() => ({ data: [] })),
+    ]);
+    setCfg(c); setSports(s || []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const toggleSport = (key) => {
+    if (!cfg) return;
+    const enabled = cfg.enabled_sports.includes(key)
+      ? cfg.enabled_sports.filter((k) => k !== key)
+      : [...cfg.enabled_sports, key];
+    setCfg({ ...cfg, enabled_sports: enabled });
+  };
+
+  const saveCfg = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const { data } = await api.patch("/admin/odds/config", {
+        enabled_sports: cfg.enabled_sports,
+        auto_sync_hours: Number(cfg.auto_sync_hours),
+        auto_sync_enabled: cfg.auto_sync_enabled,
+      });
+      setCfg(data);
+      setMsg({ ok: true, text: lang === "es" ? "Configuración guardada" : "Config saved" });
+    } catch (e) { setMsg({ ok: false, text: e?.response?.data?.detail || "Error" }); }
+    finally { setBusy(false); }
+  };
+
+  const syncNow = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const { data } = await api.post("/admin/odds/sync", {
+        create_predictions: creatingPreds, create_markets: creatingMkts,
+      });
+      setMsg({ ok: true, text: `${lang === "es" ? "Listo" : "Done"}: ${data.predictions_created} preds · ${data.markets_created} mkts · ${data.events_seen} eventos` });
+      load();
+    } catch (e) { setMsg({ ok: false, text: e?.response?.data?.detail || "Error" }); }
+    finally { setBusy(false); }
+  };
+
+  if (!cfg) return <div className="text-zinc-500">Loading...</div>;
+
+  // Filter sports relevant to us (soccer + baseball)
+  const relevantSports = sports.filter((s) =>
+    s.key.startsWith("soccer_") || s.key.startsWith("baseball_") || s.key.startsWith("americanfootball_") || s.key.startsWith("basketball_")
+  );
+  const groupBy = relevantSports.reduce((acc, s) => {
+    const grp = s.group || "Other";
+    (acc[grp] ||= []).push(s);
+    return acc;
+  }, {});
+
+  return (
+    <Section title="Odds API" icon={CloudArrowDown}>
+      <div className="space-y-5">
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="border border-zinc-800 rounded-md p-4">
+            <div className="label">API Key</div>
+            <div className={`font-mono text-sm ${cfg.api_key_set ? "text-[#00e676]" : "text-[#ff3b30]"}`}>
+              {cfg.api_key_set ? "✓ Configurada" : "✗ Falta en .env (ODDS_API_KEY)"}
+            </div>
+          </div>
+          <div className="border border-zinc-800 rounded-md p-4">
+            <div className="label">{lang === "es" ? "Última sync" : "Last sync"}</div>
+            <div className="text-sm">
+              {cfg.last_sync_at ? new Date(cfg.last_sync_at).toLocaleString() : "—"}
+            </div>
+            {cfg.last_sync_summary && (
+              <div className="text-xs text-zinc-400 mt-1">
+                {cfg.last_sync_summary.predictions_created} preds · {cfg.last_sync_summary.markets_created} mkts · {cfg.last_sync_summary.events_seen} ev · {(cfg.last_sync_summary.errors || []).length} errors
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border border-zinc-800 rounded-md p-4 space-y-3">
+          <h3 className="font-display font-bold text-lg uppercase">Auto-sync</h3>
+          <div className="flex items-center gap-4 flex-wrap">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={cfg.auto_sync_enabled}
+                onChange={(e) => setCfg({ ...cfg, auto_sync_enabled: e.target.checked })}
+                data-testid="odds-auto-toggle" />
+              {lang === "es" ? "Activar sync automático" : "Enable auto-sync"}
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="label !mb-0">{lang === "es" ? "Cada" : "Every"}</span>
+              <input type="number" min={1} max={24} value={cfg.auto_sync_hours}
+                onChange={(e) => setCfg({ ...cfg, auto_sync_hours: e.target.value })}
+                className="input !py-1 !w-20" data-testid="odds-hours-input" />
+              <span className="text-sm text-zinc-400">{lang === "es" ? "horas" : "hours"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-zinc-800 rounded-md p-4">
+          <h3 className="font-display font-bold text-lg uppercase mb-3">{lang === "es" ? "Ligas / Deportes activos" : "Active sports / leagues"}</h3>
+          <p className="text-xs text-zinc-500 mb-3">{lang === "es" ? "Solo se sincronizarán las ligas marcadas. ⚠️ Cada liga marcada = 1 request por sync." : "Only checked sports are synced. Each one = 1 API call per sync."}</p>
+          <div className="space-y-3 max-h-[400px] overflow-auto scrollbar-thin pr-2">
+            {Object.entries(groupBy).map(([grp, items]) => (
+              <div key={grp}>
+                <div className="label !mb-2">{grp}</div>
+                <div className="grid sm:grid-cols-2 gap-1.5">
+                  {items.map((s) => {
+                    const supported = !!cfg.sport_map[s.key];
+                    const checked = cfg.enabled_sports.includes(s.key);
+                    return (
+                      <label key={s.key} className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm border ${
+                        checked ? "border-[#d4ff00] bg-[#d4ff00]/5" : "border-zinc-900"
+                      } ${!supported ? "opacity-50" : "cursor-pointer hover:border-zinc-700"}`}>
+                        <input type="checkbox" disabled={!supported} checked={checked}
+                          onChange={() => toggleSport(s.key)}
+                          data-testid={`odds-sport-${s.key}`} />
+                        <span className="flex-1 truncate">{s.title}</span>
+                        {!supported && <span className="badge text-[10px]">no map</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {relevantSports.length === 0 && (
+              <div className="text-zinc-500 text-sm">{lang === "es" ? "No se pudieron cargar deportes desde la API." : "Could not fetch sports list."}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 items-center">
+          <button onClick={saveCfg} disabled={busy} className="btn-outline" data-testid="odds-save-cfg">
+            {busy ? "..." : (lang === "es" ? "Guardar config" : "Save config")}
+          </button>
+
+          <div className="flex-1" />
+
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={creatingPreds} onChange={(e) => setCreatingPreds(e.target.checked)} />
+            Predictions
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={creatingMkts} onChange={(e) => setCreatingMkts(e.target.checked)} />
+            Markets
+          </label>
+          <button onClick={syncNow} disabled={busy} className="btn-primary" data-testid="odds-sync-now">
+            <CloudArrowDown size={16} weight="bold" />
+            {busy ? "..." : (lang === "es" ? "Sincronizar ahora" : "Sync now")}
+          </button>
+        </div>
+
+        {msg && (
+          <div className={`text-sm ${msg.ok ? "text-[#00e676]" : "text-[#ff3b30]"}`} data-testid="odds-msg">{msg.text}</div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 // ---- Layout ----
 const TABS = [
   { key: "metrics", icon: ChartBar, label: "admin.metrics", Comp: MetricsTab },
   { key: "predictions", icon: ListChecks, label: "admin.predictions", Comp: PredictionsTab },
   { key: "markets", icon: Lightning, label: "admin.markets", Comp: MarketsTab },
+  { key: "odds", icon: CloudArrowDown, label: "admin.odds", Comp: OddsTab },
   { key: "recharges", icon: Money, label: "admin.recharges", Comp: RechargesTab },
   { key: "payments", icon: CurrencyDollar, label: "admin.payments", Comp: PaymentMethodsTab },
   { key: "banners", icon: ImageIcon, label: "admin.banners", Comp: BannersTab },

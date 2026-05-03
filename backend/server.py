@@ -31,6 +31,19 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin1234!")
 VAPID_PUBLIC = os.environ["VAPID_PUBLIC_KEY"]
 VAPID_PRIVATE_PEM = base64.b64decode(os.environ["VAPID_PRIVATE_KEY_B64"]).decode()
 VAPID_CONTACT = os.environ.get("VAPID_CONTACT_EMAIL", "mailto:admin@pickszone.com")
+ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
+ODDS_API_BASE = "https://api.the-odds-api.com/v4"
+
+# Default sport keys we sync (mapped to our internal sports)
+ODDS_SPORT_MAP = {
+    "soccer_epl": "football",
+    "soccer_spain_la_liga": "football",
+    "soccer_italy_serie_a": "football",
+    "soccer_germany_bundesliga": "football",
+    "soccer_france_ligue_one": "football",
+    "soccer_uefa_champs_league": "football",
+    "baseball_mlb": "baseball",
+}
 
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
@@ -815,6 +828,271 @@ async def admin_metrics(_: dict = Depends(require_admin)):
     }
 
 
+# ----------------------- Odds API integration -----------------------
+import asyncio
+import httpx
+
+async def odds_get_config() -> dict:
+    cfg = await db.odds_config.find_one({"_id": "main"}, {"_id": 0})
+    if not cfg:
+        cfg = {
+            "enabled_sports": list(ODDS_SPORT_MAP.keys()),
+            "auto_sync_hours": 6,
+            "auto_sync_enabled": True,
+            "last_sync_at": None,
+            "last_sync_summary": None,
+        }
+        await db.odds_config.update_one({"_id": "main"}, {"$set": cfg}, upsert=True)
+    return cfg
+
+
+def _best_odds_for_outcome(bookmakers: list, market_key: str, outcome_name: str):
+    """Find the best (highest) odds across bookmakers for a given outcome."""
+    best = None
+    for b in bookmakers or []:
+        for m in b.get("markets", []):
+            if m.get("key") != market_key:
+                continue
+            for o in m.get("outcomes", []):
+                if o.get("name") == outcome_name:
+                    price = o.get("price")
+                    if price and (best is None or price > best):
+                        best = price
+    return best
+
+
+def _iter_outcomes(bookmakers: list, market_key: str):
+    """Collect unique outcome names + best odds for a given market."""
+    out = {}
+    for b in bookmakers or []:
+        for m in b.get("markets", []):
+            if m.get("key") != market_key:
+                continue
+            for o in m.get("outcomes", []):
+                name = o.get("name")
+                price = o.get("price")
+                if not name or not price:
+                    continue
+                if name not in out or price > out[name]["odds"]:
+                    out[name] = {"odds": float(price), "point": o.get("point")}
+    return out
+
+
+async def odds_sync_run(create_markets: bool = True, create_predictions: bool = True) -> dict:
+    """Pull events from The Odds API and create predictions/markets if missing."""
+    if not ODDS_API_KEY:
+        raise HTTPException(400, "ODDS_API_KEY not configured")
+    cfg = await odds_get_config()
+    sports = cfg.get("enabled_sports") or list(ODDS_SPORT_MAP.keys())
+
+    summary = {"sports": [], "predictions_created": 0, "markets_created": 0, "events_seen": 0, "errors": []}
+    async with httpx.AsyncClient(timeout=20) as http:
+        for sport_key in sports:
+            internal_sport = ODDS_SPORT_MAP.get(sport_key, "football")
+            try:
+                r = await http.get(
+                    f"{ODDS_API_BASE}/sports/{sport_key}/odds",
+                    params={
+                        "apiKey": ODDS_API_KEY,
+                        "regions": "eu,uk,us",
+                        "markets": "h2h,totals",
+                        "oddsFormat": "decimal",
+                        "dateFormat": "iso",
+                    },
+                )
+                if r.status_code != 200:
+                    summary["errors"].append(f"{sport_key}: HTTP {r.status_code} {r.text[:120]}")
+                    continue
+                events = r.json()
+            except Exception as e:
+                summary["errors"].append(f"{sport_key}: {e}")
+                continue
+
+            sport_summary = {"sport": sport_key, "events": len(events), "preds": 0, "mkts": 0}
+            for ev in events[:25]:  # cap per sport
+                summary["events_seen"] += 1
+                ext_id = ev.get("id")
+                if not ext_id:
+                    continue
+                home, away = ev.get("home_team"), ev.get("away_team")
+                event_label = f"{home} vs {away}"
+                commence = ev.get("commence_time")
+                bk = ev.get("bookmakers") or []
+                if not bk:
+                    continue
+
+                # H2H best odds
+                h2h_outcomes = _iter_outcomes(bk, "h2h")
+                # Totals (over/under)
+                totals_outcomes = _iter_outcomes(bk, "totals")
+
+                # ---- Prediction (best home pick) ----
+                if create_predictions and home in h2h_outcomes:
+                    exists = await db.predictions.find_one({"external_id": f"odds:{ext_id}:h2h"}, {"_id": 0})
+                    if not exists:
+                        odds = h2h_outcomes[home]["odds"]
+                        await db.predictions.insert_one({
+                            "prediction_id": f"pred_{uuid.uuid4().hex[:10]}",
+                            "external_id": f"odds:{ext_id}:h2h",
+                            "sport": internal_sport,
+                            "title": f"{home} ML",
+                            "event": event_label,
+                            "pick": f"{home} to win (1X2 home)",
+                            "odds": odds,
+                            "stake": 5,
+                            "confidence": 3,
+                            "analysis": f"Auto-imported from The Odds API. Best home moneyline @ {odds:.2f}.",
+                            "starts_at": commence,
+                            "image_url": None,
+                            "status": "pending",
+                            "likes": 0,
+                            "auto_imported": True,
+                            "created_at": iso(now_utc()),
+                        })
+                        summary["predictions_created"] += 1
+                        sport_summary["preds"] += 1
+
+                # ---- Market H2H ----
+                if create_markets and h2h_outcomes:
+                    exists = await db.markets.find_one({"external_id": f"odds:{ext_id}:h2h"}, {"_id": 0})
+                    if not exists:
+                        options = [
+                            {"label": name, "odds": data["odds"]}
+                            for name, data in h2h_outcomes.items()
+                        ]
+                        if len(options) >= 2:
+                            await db.markets.insert_one({
+                                "market_id": f"mkt_{uuid.uuid4().hex[:10]}",
+                                "external_id": f"odds:{ext_id}:h2h",
+                                "sport": internal_sport,
+                                "market_type": "custom",
+                                "title": f"{home} vs {away} — Result",
+                                "event": event_label,
+                                "options": options,
+                                "closes_at": commence,
+                                "image_url": None,
+                                "status": "open",
+                                "auto_imported": True,
+                                "created_at": iso(now_utc()),
+                            })
+                            summary["markets_created"] += 1
+                            sport_summary["mkts"] += 1
+
+                # ---- Market Over/Under ----
+                if create_markets and totals_outcomes:
+                    exists = await db.markets.find_one({"external_id": f"odds:{ext_id}:totals"}, {"_id": 0})
+                    if not exists:
+                        options = []
+                        for name, data in totals_outcomes.items():
+                            label = name
+                            if data.get("point") is not None:
+                                label = f"{name} {data['point']}"
+                            options.append({"label": label, "odds": data["odds"]})
+                        if len(options) >= 2:
+                            mt = "over_under_goals" if internal_sport == "football" else "custom"
+                            await db.markets.insert_one({
+                                "market_id": f"mkt_{uuid.uuid4().hex[:10]}",
+                                "external_id": f"odds:{ext_id}:totals",
+                                "sport": internal_sport,
+                                "market_type": mt,
+                                "title": f"{home} vs {away} — Total",
+                                "event": event_label,
+                                "options": options,
+                                "closes_at": commence,
+                                "image_url": None,
+                                "status": "open",
+                                "auto_imported": True,
+                                "created_at": iso(now_utc()),
+                            })
+                            summary["markets_created"] += 1
+                            sport_summary["mkts"] += 1
+
+            summary["sports"].append(sport_summary)
+
+    summary["completed_at"] = iso(now_utc())
+    await db.odds_config.update_one(
+        {"_id": "main"},
+        {"$set": {"last_sync_at": iso(now_utc()), "last_sync_summary": summary}},
+        upsert=True,
+    )
+    log.info(f"Odds sync done: {summary['predictions_created']} preds, {summary['markets_created']} markets, errors={len(summary['errors'])}")
+    return summary
+
+
+@api.get("/admin/odds/sports")
+async def admin_odds_sports(_: dict = Depends(require_admin)):
+    """Proxy to fetch active sports list from The Odds API."""
+    if not ODDS_API_KEY:
+        raise HTTPException(400, "ODDS_API_KEY not configured")
+    async with httpx.AsyncClient(timeout=15) as http:
+        r = await http.get(f"{ODDS_API_BASE}/sports", params={"apiKey": ODDS_API_KEY, "all": "false"})
+        if r.status_code != 200:
+            raise HTTPException(502, f"Odds API error {r.status_code}")
+        return r.json()
+
+
+@api.get("/admin/odds/config")
+async def admin_odds_get_config(_: dict = Depends(require_admin)):
+    cfg = await odds_get_config()
+    cfg["api_key_set"] = bool(ODDS_API_KEY)
+    cfg["sport_map"] = ODDS_SPORT_MAP
+    return cfg
+
+
+@api.patch("/admin/odds/config")
+async def admin_odds_set_config(body: dict, _: dict = Depends(require_admin)):
+    update = {}
+    if "enabled_sports" in body and isinstance(body["enabled_sports"], list):
+        update["enabled_sports"] = [s for s in body["enabled_sports"] if isinstance(s, str)]
+    if "auto_sync_hours" in body:
+        h = int(body["auto_sync_hours"])
+        update["auto_sync_hours"] = max(1, min(24, h))
+    if "auto_sync_enabled" in body:
+        update["auto_sync_enabled"] = bool(body["auto_sync_enabled"])
+    await db.odds_config.update_one({"_id": "main"}, {"$set": update}, upsert=True)
+    return await odds_get_config()
+
+
+@api.post("/admin/odds/sync")
+async def admin_odds_sync_now(body: Optional[dict] = None, _: dict = Depends(require_admin)):
+    body = body or {}
+    return await odds_sync_run(
+        create_markets=body.get("create_markets", True),
+        create_predictions=body.get("create_predictions", True),
+    )
+
+
+# Background scheduler
+_odds_task: Optional[asyncio.Task] = None
+
+async def _odds_loop():
+    """Run odds sync every N hours per config."""
+    while True:
+        try:
+            cfg = await odds_get_config()
+            if cfg.get("auto_sync_enabled") and ODDS_API_KEY:
+                last = cfg.get("last_sync_at")
+                hours = cfg.get("auto_sync_hours", 6)
+                should_run = False
+                if not last:
+                    should_run = True
+                else:
+                    try:
+                        last_dt = datetime.fromisoformat(last)
+                        if last_dt.tzinfo is None:
+                            last_dt = last_dt.replace(tzinfo=timezone.utc)
+                        if (now_utc() - last_dt) >= timedelta(hours=hours):
+                            should_run = True
+                    except Exception:
+                        should_run = True
+                if should_run:
+                    log.info("Auto odds sync starting...")
+                    await odds_sync_run()
+        except Exception as e:
+            log.warning(f"odds_loop error: {e}")
+        await asyncio.sleep(60 * 30)  # check every 30 min
+
+
 # ----------------------- Bootstrap -----------------------
 @api.get("/")
 async def root():
@@ -898,6 +1176,12 @@ async def startup():
         ])
 
     log.info("PicksZone backend ready")
+
+    # Start odds auto-sync loop
+    global _odds_task
+    if ODDS_API_KEY and (_odds_task is None or _odds_task.done()):
+        _odds_task = asyncio.create_task(_odds_loop())
+        log.info("Odds auto-sync loop started")
 
 
 @app.on_event("shutdown")
