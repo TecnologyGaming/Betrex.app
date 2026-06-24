@@ -16,7 +16,7 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { t, lang } = useLang();
   const nav = useNavigate();
   const [bets, setBets] = useState([]);
@@ -24,10 +24,11 @@ export default function Profile() {
   const [pushMsg, setPushMsg] = useState("");
 
   useEffect(() => {
+    if (loading) return;
     if (!user) { nav("/login"); return; }
     api.get("/bets/me").then(({ data }) => setBets(data || []));
     if ("Notification" in window && Notification.permission === "granted") setPushOk(true);
-  }, [user, nav]);
+  }, [user, loading, nav]);
 
   const enablePush = async () => {
     setPushMsg("");

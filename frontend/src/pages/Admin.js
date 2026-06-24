@@ -402,12 +402,66 @@ function PaymentMethodsTab() {
                 {PM_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select></div>
           </div>
-          <div><label className="label">Account info</label>
-            <input value={form.account_info} onChange={(e) => setForm({ ...form, account_info: e.target.value })} className="input" /></div>
+          {form.type !== "stripe" && (
+            <div><label className="label">Account info</label>
+              <input value={form.account_info} onChange={(e) => setForm({ ...form, account_info: e.target.value })} className="input" /></div>
+          )}
           <div><label className="label">Instructions (visible al usuario)</label>
-            <textarea rows={3} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="input" /></div>
-          <div><label className="label">Config JSON (Stripe keys, etc)</label>
-            <textarea rows={4} value={configRaw} onChange={(e) => setConfigRaw(e.target.value)} className="input font-mono text-xs" /></div>
+            <textarea rows={2} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="input" /></div>
+
+          {form.type === "stripe" ? (
+            <div className="border border-[#007aff]/40 bg-[#007aff]/5 rounded-md p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <div>
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-[#007aff]">Credenciales Stripe</h4>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Obtén tus llaves en <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noreferrer" className="text-[#d4ff00] underline">dashboard.stripe.com/apikeys</a>.
+                    Si dejas en blanco, se usa la key del entorno (modo demo).
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="label">Secret Key (sk_live_... o sk_test_...)</label>
+                <input
+                  type="password"
+                  value={(form.config?.secret_key) || ""}
+                  onChange={(e) => setForm({ ...form, config: { ...form.config, secret_key: e.target.value } })}
+                  className="input font-mono text-xs"
+                  placeholder="sk_live_xxxxxxxxxxxxxxxxx"
+                  data-testid="stripe-secret-key"
+                />
+              </div>
+              <div>
+                <label className="label">Publishable Key (pk_live_... o pk_test_...)</label>
+                <input
+                  value={(form.config?.publishable_key) || ""}
+                  onChange={(e) => setForm({ ...form, config: { ...form.config, publishable_key: e.target.value } })}
+                  className="input font-mono text-xs"
+                  placeholder="pk_live_xxxxxxxxxxxxxxxxx"
+                  data-testid="stripe-pub-key"
+                />
+              </div>
+              <div>
+                <label className="label">Webhook Secret (whsec_...)</label>
+                <input
+                  type="password"
+                  value={(form.config?.webhook_secret) || ""}
+                  onChange={(e) => setForm({ ...form, config: { ...form.config, webhook_secret: e.target.value } })}
+                  className="input font-mono text-xs"
+                  placeholder="whsec_xxxxxxxxxxxxxxxxx"
+                  data-testid="stripe-webhook-secret"
+                />
+                <div className="text-xs text-zinc-500 mt-1">
+                  Webhook URL: <code className="text-[#d4ff00]">{`${window.location.origin}/api/webhook/stripe`}</code>
+                  <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhook/stripe`)} className="ml-2 text-[#007aff] hover:underline">copiar</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div><label className="label">Config JSON (avanzado)</label>
+              <textarea rows={4} value={configRaw} onChange={(e) => setConfigRaw(e.target.value)} className="input font-mono text-xs" /></div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <label className="flex items-center gap-2"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Active</label>
             <div><label className="label">Order</label>

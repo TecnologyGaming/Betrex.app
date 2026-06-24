@@ -33,6 +33,7 @@ VAPID_PRIVATE_PEM = base64.b64decode(os.environ["VAPID_PRIVATE_KEY_B64"]).decode
 VAPID_CONTACT = os.environ.get("VAPID_CONTACT_EMAIL", "mailto:admin@pickszone.com")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
+DEFAULT_STRIPE_KEY = os.environ.get("STRIPE_API_KEY", "")
 
 # Default sport keys we sync (mapped to our internal sports)
 ODDS_SPORT_MAP = {
@@ -709,6 +710,222 @@ async def request_recharge(body: RechargeIn, user: dict = Depends(get_current_us
 async def my_recharges(user: dict = Depends(get_current_user)):
     items = await db.recharges.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return items
+
+
+# ----------------------- Stripe checkout -----------------------
+from emergentintegrations.payments.stripe.checkout import (
+    StripeCheckout, CheckoutSessionRequest,
+)
+
+
+async def _get_stripe_key() -> tuple:
+    """Return (api_key, is_test_default). Falls back to env if admin hasn't entered keys."""
+    pm = await db.payment_methods.find_one({"type": "stripe", "active": True})
+    if pm:
+        cfg = pm.get("config") or {}
+        key = cfg.get("secret_key", "").strip()
+        if key:
+            return key, False
+    if DEFAULT_STRIPE_KEY:
+        return DEFAULT_STRIPE_KEY, True
+    return "", True
+
+
+class StripeCheckoutIn(BaseModel):
+    amount_usd: float = Field(ge=20, le=7000)
+    origin_url: str
+
+
+@api.post("/recharges/stripe/checkout")
+async def stripe_checkout_create(body: StripeCheckoutIn, request: Request,
+                                  user: dict = Depends(get_current_user)):
+    api_key, _ = await _get_stripe_key()
+    if not api_key:
+        raise HTTPException(400, "Stripe not configured. Admin must enter secret_key in payment methods.")
+
+    origin = body.origin_url.rstrip("/")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+
+    # Server-side amount control (never trust frontend)
+    amount = float(body.amount_usd)
+    if not (20 <= amount <= 7000):
+        raise HTTPException(400, "Amount must be between $20 and $7000")
+    coins = int(amount * 100)
+
+    success_url = f"{origin}/wallet?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin}/wallet?canceled=1"
+
+    req = CheckoutSessionRequest(
+        amount=amount,
+        currency="usd",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "user_id": user["user_id"],
+            "user_email": user["email"],
+            "coins": str(coins),
+            "amount_usd": str(amount),
+            "source": "pickszone_wallet",
+        },
+    )
+    try:
+        session = await checkout.create_checkout_session(req)
+    except Exception as e:
+        log.error(f"Stripe checkout creation failed: {e}")
+        raise HTTPException(502, f"Stripe error: {str(e)[:200]}")
+
+    # Create pending transaction record
+    await db.payment_transactions.insert_one({
+        "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+        "session_id": session.session_id,
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "amount_usd": amount,
+        "coins": coins,
+        "currency": "usd",
+        "payment_status": "initiated",
+        "status": "pending",
+        "metadata": req.metadata,
+        "created_at": iso(now_utc()),
+        "credited": False,
+    })
+    return {"checkout_url": session.url, "session_id": session.session_id}
+
+
+@api.get("/recharges/stripe/status/{session_id}")
+async def stripe_checkout_status(session_id: str, user: dict = Depends(get_current_user)):
+    """Poll Stripe for status, credit coins idempotently."""
+    txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not txn:
+        raise HTTPException(404, "Transaction not found")
+    if txn["user_id"] != user["user_id"]:
+        raise HTTPException(403, "Not your transaction")
+
+    # If already credited, just return
+    if txn.get("credited"):
+        return {
+            "payment_status": txn.get("payment_status"),
+            "status": txn.get("status"),
+            "amount_usd": txn.get("amount_usd"),
+            "coins": txn.get("coins"),
+            "credited": True,
+        }
+
+    api_key, _ = await _get_stripe_key()
+    if not api_key:
+        raise HTTPException(400, "Stripe not configured")
+    checkout = StripeCheckout(api_key=api_key, webhook_url="unused")
+    try:
+        st = await checkout.get_checkout_status(session_id)
+    except Exception as e:
+        raise HTTPException(502, f"Stripe error: {str(e)[:200]}")
+
+    update = {
+        "payment_status": st.payment_status,
+        "status": st.status,
+        "last_checked_at": iso(now_utc()),
+    }
+    credited = False
+    if st.payment_status == "paid" and not txn.get("credited"):
+        # Credit coins (idempotent via $set + check above)
+        res = await db.payment_transactions.update_one(
+            {"session_id": session_id, "credited": {"$ne": True}},
+            {"$set": {**update, "credited": True, "credited_at": iso(now_utc())}},
+        )
+        if res.modified_count > 0:
+            # Credit user balance + create approved recharge entry
+            await db.users.update_one(
+                {"user_id": txn["user_id"]},
+                {"$inc": {"coins_balance": txn["coins"]}},
+            )
+            await db.recharges.insert_one({
+                "recharge_id": f"rch_{uuid.uuid4().hex[:10]}",
+                "user_id": txn["user_id"],
+                "user_email": txn["user_email"],
+                "user_name": (await db.users.find_one({"user_id": txn["user_id"]}, {"name": 1, "_id": 0}) or {}).get("name", ""),
+                "payment_method_id": "stripe",
+                "payment_method_name": "Stripe",
+                "amount_usd": txn["amount_usd"],
+                "coins": txn["coins"],
+                "proof_note": f"Stripe session {session_id}",
+                "proof_url": None,
+                "status": "approved",
+                "stripe_session_id": session_id,
+                "created_at": iso(now_utc()),
+                "reviewed_at": iso(now_utc()),
+                "review_note": "Auto-approved via Stripe",
+            })
+            credited = True
+            # Push notify the user
+            u = await db.users.find_one({"user_id": txn["user_id"]}, {"_id": 0})
+            if u and u.get("push_sub"):
+                send_push_to(u["push_sub"], {
+                    "title": "PicksZone",
+                    "body": f"+{txn['coins']} coins acreditados (Stripe)",
+                    "url": "/wallet",
+                })
+    else:
+        await db.payment_transactions.update_one({"session_id": session_id}, {"$set": update})
+
+    refreshed = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    return {
+        "payment_status": refreshed.get("payment_status"),
+        "status": refreshed.get("status"),
+        "amount_usd": refreshed.get("amount_usd"),
+        "coins": refreshed.get("coins"),
+        "credited": bool(refreshed.get("credited")) or credited,
+    }
+
+
+@app.post("/api/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Stripe webhook receiver — idempotent credit."""
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+    api_key, _ = await _get_stripe_key()
+    if not api_key:
+        return {"ok": False, "reason": "no_key"}
+    checkout = StripeCheckout(api_key=api_key, webhook_url="unused")
+    try:
+        evt = await checkout.handle_webhook(body, sig)
+    except Exception as e:
+        log.warning(f"webhook verify failed: {e}")
+        return {"ok": False}
+
+    if evt.event_type == "checkout.session.completed" and evt.payment_status == "paid":
+        sess_id = evt.session_id
+        txn = await db.payment_transactions.find_one({"session_id": sess_id}, {"_id": 0})
+        if txn and not txn.get("credited"):
+            res = await db.payment_transactions.update_one(
+                {"session_id": sess_id, "credited": {"$ne": True}},
+                {"$set": {"credited": True, "payment_status": "paid", "status": "complete",
+                          "credited_at": iso(now_utc()), "via": "webhook"}},
+            )
+            if res.modified_count > 0:
+                await db.users.update_one(
+                    {"user_id": txn["user_id"]},
+                    {"$inc": {"coins_balance": txn["coins"]}},
+                )
+                await db.recharges.insert_one({
+                    "recharge_id": f"rch_{uuid.uuid4().hex[:10]}",
+                    "user_id": txn["user_id"],
+                    "user_email": txn["user_email"],
+                    "user_name": "",
+                    "payment_method_id": "stripe",
+                    "payment_method_name": "Stripe",
+                    "amount_usd": txn["amount_usd"],
+                    "coins": txn["coins"],
+                    "proof_note": f"Stripe webhook {sess_id}",
+                    "proof_url": None,
+                    "status": "approved",
+                    "stripe_session_id": sess_id,
+                    "created_at": iso(now_utc()),
+                    "reviewed_at": iso(now_utc()),
+                    "review_note": "Auto-approved via Stripe webhook",
+                })
+    return {"ok": True}
 
 
 # ----------------------- Push -----------------------

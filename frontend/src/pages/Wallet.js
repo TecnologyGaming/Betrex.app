@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useCallback } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useLang } from "../contexts/LanguageContext";
-import { Coins, Wallet as WalletIcon } from "@phosphor-icons/react";
+import { Coins, Wallet as WalletIcon, CreditCard, CheckCircle } from "@phosphor-icons/react";
 
 export default function Wallet() {
-  const { user } = useAuth();
+  const { user, refresh, loading } = useAuth();
   const { t, lang } = useLang();
   const nav = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [methods, setMethods] = useState([]);
   const [recharges, setRecharges] = useState([]);
   const [pmId, setPmId] = useState("");
@@ -17,21 +18,66 @@ export default function Wallet() {
   const [proofUrl, setProofUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [stripeStatus, setStripeStatus] = useState(null);
+
+  const loadRecharges = useCallback(() => {
+    api.get("/recharges/me").then(({ data }) => setRecharges(data || []));
+  }, []);
 
   useEffect(() => {
+    if (loading) return;
     if (!user) { nav("/login"); return; }
     api.get("/payment-methods").then(({ data }) => {
       setMethods(data || []);
       if (data?.[0]) setPmId(data[0].payment_method_id);
     });
-    api.get("/recharges/me").then(({ data }) => setRecharges(data || []));
-  }, [user, nav]);
+    loadRecharges();
+  }, [user, loading, nav, loadRecharges]);
+
+  // Stripe return: poll status
+  useEffect(() => {
+    const sessionId = params.get("session_id");
+    const canceled = params.get("canceled");
+    if (canceled) {
+      setMsg({ ok: false, text: lang === "es" ? "Pago cancelado" : "Payment canceled" });
+      setParams({});
+      return;
+    }
+    if (!sessionId || !user) return;
+    setStripeStatus({ checking: true });
+    let attempts = 0;
+    const poll = async () => {
+      try {
+        const { data } = await api.get(`/recharges/stripe/status/${sessionId}`);
+        if (data.payment_status === "paid" || data.credited) {
+          setStripeStatus({ ok: true, coins: data.coins, amount: data.amount_usd });
+          await refresh();
+          loadRecharges();
+          setParams({});
+          return;
+        }
+        if (data.status === "expired") {
+          setStripeStatus({ ok: false, msg: lang === "es" ? "Sesión expirada" : "Session expired" });
+          setParams({});
+          return;
+        }
+        attempts++;
+        if (attempts < 8) setTimeout(poll, 2000);
+        else setStripeStatus({ ok: false, msg: lang === "es" ? "Verifica tu correo de Stripe" : "Check your Stripe email" });
+      } catch (e) {
+        setStripeStatus({ ok: false, msg: e?.response?.data?.detail || "Error" });
+      }
+    };
+    poll();
+  }, [user, params, setParams, refresh, loadRecharges, lang]);
 
   if (!user) return null;
   const selected = methods.find((m) => m.payment_method_id === pmId);
+  const isStripe = selected?.type === "stripe";
 
   const submit = async (e) => {
     e.preventDefault();
+    if (isStripe) return payWithStripe();
     setBusy(true); setMsg(null);
     try {
       await api.post("/recharges", {
@@ -40,10 +86,24 @@ export default function Wallet() {
       });
       setMsg({ ok: true, text: t("common.requestSent") });
       setNote(""); setProofUrl("");
-      const { data } = await api.get("/recharges/me"); setRecharges(data || []);
+      loadRecharges();
     } catch (err) {
       setMsg({ ok: false, text: err?.response?.data?.detail || "Error" });
     } finally { setBusy(false); }
+  };
+
+  const payWithStripe = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const { data } = await api.post("/recharges/stripe/checkout", {
+        amount_usd: Number(amount),
+        origin_url: window.location.origin,
+      });
+      window.location.href = data.checkout_url;
+    } catch (err) {
+      setMsg({ ok: false, text: err?.response?.data?.detail || "Error" });
+      setBusy(false);
+    }
   };
 
   return (
@@ -88,12 +148,23 @@ export default function Wallet() {
             </div>
           </div>
 
-          {selected && (selected.instructions || selected.account_info) && (
+          {selected && (selected.instructions || selected.account_info) && !isStripe && (
             <div className="bg-black/40 border border-zinc-800 rounded-md p-3 text-sm">
               <div className="text-zinc-400 whitespace-pre-wrap">{selected.instructions}</div>
               {selected.account_info && (
                 <div className="mt-2 font-mono text-[#d4ff00] break-all">{selected.account_info}</div>
               )}
+            </div>
+          )}
+
+          {isStripe && (
+            <div className="bg-[#007aff]/10 border border-[#007aff]/40 rounded-md p-3 text-sm flex items-start gap-2">
+              <CreditCard size={20} weight="duotone" color="#007aff" className="shrink-0 mt-0.5" />
+              <div className="text-zinc-300">
+                {lang === "es"
+                  ? "Pago instantáneo con tarjeta. Tus coins se acreditarán automáticamente al completar el pago."
+                  : "Instant card payment. Coins are credited automatically once payment completes."}
+              </div>
             </div>
           )}
 
@@ -107,19 +178,40 @@ export default function Wallet() {
             <div className="text-xs text-zinc-500 mt-1 font-mono">= {Number(amount) * 100} {t("common.coins")}</div>
           </div>
 
-          <div>
-            <label className="label">{t("wallet.proofNote")}</label>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="input" data-testid="recharge-note" />
-          </div>
+          {!isStripe && (
+            <>
+              <div>
+                <label className="label">{t("wallet.proofNote")}</label>
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="input" data-testid="recharge-note" />
+              </div>
 
-          <div>
-            <label className="label">{t("wallet.proofUrl")}</label>
-            <input type="url" value={proofUrl} onChange={(e) => setProofUrl(e.target.value)} className="input" placeholder="https://..." data-testid="recharge-proof" />
-          </div>
+              <div>
+                <label className="label">{t("wallet.proofUrl")}</label>
+                <input type="url" value={proofUrl} onChange={(e) => setProofUrl(e.target.value)} className="input" placeholder="https://..." data-testid="recharge-proof" />
+              </div>
+            </>
+          )}
 
-          <button type="submit" disabled={busy || !pmId} className="btn-primary w-full justify-center" data-testid="recharge-submit">
-            {busy ? "..." : t("common.submit")}
+          <button type="submit" disabled={busy || !pmId} className={isStripe ? "btn-secondary w-full justify-center" : "btn-primary w-full justify-center"} data-testid="recharge-submit">
+            {busy ? "..." : isStripe ? (
+              <><CreditCard size={16} weight="fill" /> {lang === "es" ? `Pagar $${amount} con tarjeta` : `Pay $${amount} by card`}</>
+            ) : t("common.submit")}
           </button>
+          {stripeStatus?.ok && (
+            <div className="border border-[#00e676] bg-[#00e676]/10 rounded-md p-3 flex items-center gap-2" data-testid="stripe-success">
+              <CheckCircle size={20} weight="fill" color="#00e676" />
+              <div className="text-sm">
+                <div className="font-bold text-[#00e676]">{lang === "es" ? "¡Pago exitoso!" : "Payment successful!"}</div>
+                <div className="text-zinc-300">+{stripeStatus.coins} coins · ${stripeStatus.amount}</div>
+              </div>
+            </div>
+          )}
+          {stripeStatus?.checking && (
+            <div className="text-sm text-zinc-400" data-testid="stripe-checking">{lang === "es" ? "Verificando pago..." : "Verifying payment..."}</div>
+          )}
+          {stripeStatus && stripeStatus.ok === false && (
+            <div className="text-sm text-[#ff3b30]">{stripeStatus.msg}</div>
+          )}
           {msg && <div className={`text-sm ${msg.ok ? "text-[#00e676]" : "text-[#ff3b30]"}`} data-testid="recharge-msg">{msg.text}</div>}
         </form>
 
