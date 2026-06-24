@@ -6,7 +6,7 @@ import { useLang } from "../contexts/LanguageContext";
 import {
   ChartBar, ListChecks, Lightning, Image as ImageIcon, Money,
   CurrencyDollar, Users, Megaphone, Plus, PencilSimple, TrashSimple, Check, X,
-  CloudArrowDown,
+  CloudArrowDown, Gift,
 } from "@phosphor-icons/react";
 
 const SPORTS = ["football", "horse", "baseball", "lottery"];
@@ -578,6 +578,147 @@ function NotificationsTab() {
   );
 }
 
+// ---- Bonus settings tab ----
+function BonusTab() {
+  const { lang } = useLang();
+  const [s, setS] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [ladderInput, setLadderInput] = useState("");
+
+  const load = useCallback(() => {
+    api.get("/admin/bonus/settings").then(({ data }) => {
+      setS(data);
+      setLadderInput(
+        Object.entries(data.streak_ladder || {})
+          .sort((a, b) => Number(a[0]) - Number(b[0]))
+          .map(([d, r]) => `${d}:${r}`)
+          .join(", ")
+      );
+    });
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  if (!s) return <div className="text-zinc-500">Loading...</div>;
+
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      // parse ladder input "1:10, 3:30, 7:75"
+      const ladder = {};
+      ladderInput.split(",").forEach((part) => {
+        const [d, r] = part.split(":").map((x) => x.trim());
+        if (d && r && !isNaN(d) && !isNaN(r)) ladder[d] = Number(r);
+      });
+      const { data } = await api.patch("/admin/bonus/settings", {
+        welcome_bonus_enabled: s.welcome_bonus_enabled,
+        welcome_bonus_amount: Number(s.welcome_bonus_amount),
+        streak_enabled: s.streak_enabled,
+        streak_base_reward: Number(s.streak_base_reward),
+        streak_ladder: ladder,
+      });
+      setS(data);
+      setMsg({ ok: true, text: lang === "es" ? "Guardado" : "Saved" });
+    } catch (e) { setMsg({ ok: false, text: e?.response?.data?.detail || "Error" }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Section title={lang === "es" ? "Bonos y recompensas" : "Bonuses & rewards"} icon={Gift}>
+      <div className="space-y-6">
+        {/* Welcome bonus */}
+        <div className="border border-zinc-800 rounded-lg p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-display font-bold text-xl uppercase">{lang === "es" ? "Bono de bienvenida" : "Welcome bonus"}</h3>
+              <p className="text-xs text-zinc-400">{lang === "es" ? "Coins gratis cuando un usuario se registra (email o Google)." : "Free coins on register (email or Google)."}</p>
+            </div>
+            <button
+              onClick={() => setS({ ...s, welcome_bonus_enabled: !s.welcome_bonus_enabled })}
+              data-testid="welcome-toggle"
+              className={`px-4 py-2 rounded-md font-bold text-sm uppercase tracking-wider transition-colors ${
+                s.welcome_bonus_enabled ? "bg-[#00e676] text-black" : "bg-zinc-800 text-zinc-400"
+              }`}
+            >
+              {s.welcome_bonus_enabled ? (lang === "es" ? "ACTIVO" : "ON") : (lang === "es" ? "DESACTIVADO" : "OFF")}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">{lang === "es" ? "Cantidad de coins" : "Coins amount"}</label>
+              <input
+                type="number" min={0} max={10000}
+                value={s.welcome_bonus_amount}
+                onChange={(e) => setS({ ...s, welcome_bonus_amount: e.target.value })}
+                className="input" data-testid="welcome-amount"
+                disabled={!s.welcome_bonus_enabled}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Streak */}
+        <div className="border border-zinc-800 rounded-lg p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-display font-bold text-xl uppercase">{lang === "es" ? "Racha diaria" : "Daily streak"}</h3>
+              <p className="text-xs text-zinc-400">{lang === "es" ? "Coins gratis al reclamar el bono diario. Premia consecutividad." : "Free coins for claiming daily. Rewards consecutive days."}</p>
+            </div>
+            <button
+              onClick={() => setS({ ...s, streak_enabled: !s.streak_enabled })}
+              data-testid="streak-toggle"
+              className={`px-4 py-2 rounded-md font-bold text-sm uppercase tracking-wider transition-colors ${
+                s.streak_enabled ? "bg-[#00e676] text-black" : "bg-zinc-800 text-zinc-400"
+              }`}
+            >
+              {s.streak_enabled ? (lang === "es" ? "ACTIVO" : "ON") : (lang === "es" ? "DESACTIVADO" : "OFF")}
+            </button>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">{lang === "es" ? "Premio base (otros días)" : "Base reward (other days)"}</label>
+              <input
+                type="number" min={0} max={1000}
+                value={s.streak_base_reward}
+                onChange={(e) => setS({ ...s, streak_base_reward: e.target.value })}
+                className="input" data-testid="streak-base"
+                disabled={!s.streak_enabled}
+              />
+            </div>
+            <div>
+              <label className="label">{lang === "es" ? "Escalera (día:premio, separados por coma)" : "Ladder (day:reward, comma-separated)"}</label>
+              <input
+                value={ladderInput}
+                onChange={(e) => setLadderInput(e.target.value)}
+                className="input font-mono text-sm"
+                placeholder="1:10, 3:30, 7:75, 14:150, 30:500"
+                data-testid="streak-ladder"
+                disabled={!s.streak_enabled}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={save} disabled={busy} className="btn-primary" data-testid="bonus-save">
+            {busy ? "..." : (lang === "es" ? "Guardar cambios" : "Save changes")}
+          </button>
+          {msg && (
+            <span className={`text-sm ${msg.ok ? "text-[#00e676]" : "text-[#ff3b30]"}`} data-testid="bonus-msg">{msg.text}</span>
+          )}
+        </div>
+
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          {lang === "es"
+            ? "💡 Tip: Si quieres pausar los bonos esta semana, simplemente desactiva el toggle. Los usuarios verán el widget en gris y no podrán reclamar. Vuelve a activarlo cuando quieras retomar la campaña."
+            : "💡 Tip: To pause bonuses this week, just turn off the toggle. Users will see the widget greyed out and unable to claim. Re-enable whenever you want."}
+        </p>
+      </div>
+    </Section>
+  );
+}
+
 // ---- Odds API tab ----
 function OddsTab() {
   const { lang } = useLang();
@@ -776,6 +917,7 @@ const TABS = [
   { key: "predictions", icon: ListChecks, label: "admin.predictions", Comp: PredictionsTab },
   { key: "markets", icon: Lightning, label: "admin.markets", Comp: MarketsTab },
   { key: "odds", icon: CloudArrowDown, label: "admin.odds", Comp: OddsTab },
+  { key: "bonuses", icon: Gift, label: "admin.bonuses", Comp: BonusTab },
   { key: "recharges", icon: Money, label: "admin.recharges", Comp: RechargesTab },
   { key: "payments", icon: CurrencyDollar, label: "admin.payments", Comp: PaymentMethodsTab },
   { key: "banners", icon: ImageIcon, label: "admin.banners", Comp: BannersTab },

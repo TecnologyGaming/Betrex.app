@@ -18,6 +18,7 @@ export default function StreakWidget({ compact = false }) {
   useEffect(load, [user]);
 
   if (!user || !status) return null;
+  if (!status.enabled) return null;  // Hidden when admin disabled
 
   const claim = async () => {
     setBusy(true);

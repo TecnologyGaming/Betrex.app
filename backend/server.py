@@ -274,6 +274,8 @@ async def register(body: RegisterIn, response: Response):
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    settings = await get_bonus_settings()
+    welcome = int(settings.get("welcome_bonus_amount", DEFAULT_WELCOME_BONUS)) if settings.get("welcome_bonus_enabled", True) else 0
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     user = {
         "user_id": user_id,
@@ -281,11 +283,11 @@ async def register(body: RegisterIn, response: Response):
         "name": body.name,
         "password_hash": hash_pw(body.password),
         "role": "user",
-        "coins_balance": 100,  # welcome bonus
+        "coins_balance": welcome,
         "language": "es",
         "picture": None,
         "auth_provider": "local",
-        "welcome_bonus_granted": True,
+        "welcome_bonus_granted": welcome > 0,
         "streak_current": 0,
         "streak_best": 0,
         "last_streak_claim_date": None,
@@ -344,6 +346,8 @@ async def google_session(request: Request, response: Response):
         raise HTTPException(status_code=400, detail="No email from Google")
     user = await db.users.find_one({"email": email})
     if not user:
+        settings = await get_bonus_settings()
+        welcome = int(settings.get("welcome_bonus_amount", DEFAULT_WELCOME_BONUS)) if settings.get("welcome_bonus_enabled", True) else 0
         user_id = f"user_{uuid.uuid4().hex[:12]}"
         user = {
             "user_id": user_id,
@@ -351,11 +355,11 @@ async def google_session(request: Request, response: Response):
             "name": data.get("name") or email.split("@")[0],
             "password_hash": None,
             "role": "user",
-            "coins_balance": 100,  # welcome bonus
+            "coins_balance": welcome,
             "language": "es",
             "picture": data.get("picture"),
             "auth_provider": "google",
-            "welcome_bonus_granted": True,
+            "welcome_bonus_granted": welcome > 0,
             "streak_current": 0,
             "streak_best": 0,
             "last_streak_claim_date": None,
@@ -396,12 +400,29 @@ async def set_language(body: LangIn, user: dict = Depends(get_current_user)):
 
 
 # ----------------------- Streak / daily bonus -----------------------
-STREAK_REWARDS = {1: 10, 3: 30, 7: 75, 14: 150, 30: 500}
-STREAK_BASE = 5  # other days
+DEFAULT_STREAK_REWARDS = {1: 10, 3: 30, 7: 75, 14: 150, 30: 500}
+DEFAULT_STREAK_BASE = 5
+DEFAULT_WELCOME_BONUS = 100
 
 
-def _streak_reward(day: int) -> int:
-    return STREAK_REWARDS.get(day, STREAK_BASE)
+async def get_bonus_settings() -> dict:
+    s = await db.app_settings.find_one({"_id": "bonuses"}, {"_id": 0})
+    if not s:
+        s = {
+            "welcome_bonus_enabled": True,
+            "welcome_bonus_amount": DEFAULT_WELCOME_BONUS,
+            "streak_enabled": True,
+            "streak_base_reward": DEFAULT_STREAK_BASE,
+            "streak_ladder": {str(k): v for k, v in DEFAULT_STREAK_REWARDS.items()},
+        }
+        await db.app_settings.update_one({"_id": "bonuses"}, {"$set": s}, upsert=True)
+    # ensure ladder keys are strings (Mongo doesn't allow int keys)
+    return s
+
+
+def _streak_reward_from(settings: dict, day: int) -> int:
+    ladder = settings.get("streak_ladder") or {}
+    return int(ladder.get(str(day), settings.get("streak_base_reward", DEFAULT_STREAK_BASE)))
 
 
 def _today_utc_date() -> str:
@@ -415,11 +436,12 @@ def _yesterday_utc_date() -> str:
 @api.get("/streak/status")
 async def streak_status(user: dict = Depends(get_current_user)):
     """Return current streak info and whether claim is available today."""
+    settings = await get_bonus_settings()
     today = _today_utc_date()
     last = user.get("last_streak_claim_date")
     streak = int(user.get("streak_current") or 0)
-    available = last != today
-    # Determine which day would be claimed
+    enabled = bool(settings.get("streak_enabled", True))
+    available = enabled and last != today
     if last == today:
         next_day = streak
     elif last == _yesterday_utc_date():
@@ -427,19 +449,23 @@ async def streak_status(user: dict = Depends(get_current_user)):
     else:
         next_day = 1
     return {
+        "enabled": enabled,
         "streak_current": streak,
         "streak_best": int(user.get("streak_best") or 0),
         "last_claim_date": last,
         "available": available,
         "next_day": next_day,
-        "next_reward": _streak_reward(next_day),
-        "ladder": STREAK_REWARDS,
-        "base_reward": STREAK_BASE,
+        "next_reward": _streak_reward_from(settings, next_day),
+        "ladder": {int(k): v for k, v in (settings.get("streak_ladder") or {}).items()},
+        "base_reward": settings.get("streak_base_reward", DEFAULT_STREAK_BASE),
     }
 
 
 @api.post("/streak/claim")
 async def streak_claim(user: dict = Depends(get_current_user)):
+    settings = await get_bonus_settings()
+    if not settings.get("streak_enabled", True):
+        raise HTTPException(400, "Streak bonus is currently disabled")
     today = _today_utc_date()
     last = user.get("last_streak_claim_date")
     if last == today:
@@ -448,7 +474,7 @@ async def streak_claim(user: dict = Depends(get_current_user)):
         new_streak = int(user.get("streak_current") or 0) + 1
     else:
         new_streak = 1
-    reward = _streak_reward(new_streak)
+    reward = _streak_reward_from(settings, new_streak)
     new_best = max(int(user.get("streak_best") or 0), new_streak)
     await db.users.update_one(
         {"user_id": user["user_id"]},
@@ -468,6 +494,48 @@ async def streak_claim(user: dict = Depends(get_current_user)):
         "reward": reward,
         "new_balance": int(user.get("coins_balance") or 0) + reward,
     }
+
+
+# Public bonus settings (so frontend knows if welcome modal applies)
+@api.get("/bonus/settings")
+async def get_public_bonus_settings():
+    s = await get_bonus_settings()
+    # Only expose flags + amounts (no admin-only fields)
+    return {
+        "welcome_bonus_enabled": s.get("welcome_bonus_enabled", True),
+        "welcome_bonus_amount": s.get("welcome_bonus_amount", DEFAULT_WELCOME_BONUS),
+        "streak_enabled": s.get("streak_enabled", True),
+    }
+
+
+# Admin endpoints
+@api.get("/admin/bonus/settings")
+async def admin_get_bonus_settings(_: dict = Depends(require_admin)):
+    return await get_bonus_settings()
+
+
+@api.patch("/admin/bonus/settings")
+async def admin_update_bonus_settings(body: dict, _: dict = Depends(require_admin)):
+    update = {}
+    if "welcome_bonus_enabled" in body:
+        update["welcome_bonus_enabled"] = bool(body["welcome_bonus_enabled"])
+    if "welcome_bonus_amount" in body:
+        amt = int(body["welcome_bonus_amount"])
+        update["welcome_bonus_amount"] = max(0, min(10000, amt))
+    if "streak_enabled" in body:
+        update["streak_enabled"] = bool(body["streak_enabled"])
+    if "streak_base_reward" in body:
+        update["streak_base_reward"] = max(0, min(1000, int(body["streak_base_reward"])))
+    if "streak_ladder" in body and isinstance(body["streak_ladder"], dict):
+        ladder = {}
+        for k, v in body["streak_ladder"].items():
+            try:
+                ladder[str(int(k))] = max(0, min(100000, int(v)))
+            except (ValueError, TypeError):
+                continue
+        update["streak_ladder"] = ladder
+    await db.app_settings.update_one({"_id": "bonuses"}, {"$set": update}, upsert=True)
+    return await get_bonus_settings()
 
 
 # ----------------------- Public content -----------------------
