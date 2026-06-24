@@ -15,6 +15,8 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import AuthCallback from "@/pages/AuthCallback";
 import Admin from "@/pages/Admin";
+import BetOfTheDayModal from "@/components/BetOfTheDayModal";
+import WelcomeBonusModal from "@/components/WelcomeBonusModal";
 
 function AppRouter() {
   const location = useLocation();
@@ -22,8 +24,12 @@ function AppRouter() {
   if (location.hash?.includes("session_id=")) {
     return <AuthCallback />;
   }
+  // Don't show modals on auth/admin routes
+  const isAuthOrAdmin = /^\/(login|register|auth|admin)/.test(location.pathname);
   return (
     <Layout>
+      {!isAuthOrAdmin && <BetOfTheDayModal />}
+      {!isAuthOrAdmin && <WelcomeBonusModal />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/predictions" element={<Predictions />} />

@@ -281,10 +281,14 @@ async def register(body: RegisterIn, response: Response):
         "name": body.name,
         "password_hash": hash_pw(body.password),
         "role": "user",
-        "coins_balance": 0,
+        "coins_balance": 100,  # welcome bonus
         "language": "es",
         "picture": None,
         "auth_provider": "local",
+        "welcome_bonus_granted": True,
+        "streak_current": 0,
+        "streak_best": 0,
+        "last_streak_claim_date": None,
         "created_at": iso(now_utc()),
     }
     await db.users.insert_one(user.copy())
@@ -347,10 +351,14 @@ async def google_session(request: Request, response: Response):
             "name": data.get("name") or email.split("@")[0],
             "password_hash": None,
             "role": "user",
-            "coins_balance": 0,
+            "coins_balance": 100,  # welcome bonus
             "language": "es",
             "picture": data.get("picture"),
             "auth_provider": "google",
+            "welcome_bonus_granted": True,
+            "streak_current": 0,
+            "streak_best": 0,
+            "last_streak_claim_date": None,
             "created_at": iso(now_utc()),
         }
         await db.users.insert_one(user.copy())
@@ -385,6 +393,81 @@ async def google_session(request: Request, response: Response):
 async def set_language(body: LangIn, user: dict = Depends(get_current_user)):
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"language": body.language}})
     return {"ok": True, "language": body.language}
+
+
+# ----------------------- Streak / daily bonus -----------------------
+STREAK_REWARDS = {1: 10, 3: 30, 7: 75, 14: 150, 30: 500}
+STREAK_BASE = 5  # other days
+
+
+def _streak_reward(day: int) -> int:
+    return STREAK_REWARDS.get(day, STREAK_BASE)
+
+
+def _today_utc_date() -> str:
+    return now_utc().date().isoformat()
+
+
+def _yesterday_utc_date() -> str:
+    return (now_utc().date() - timedelta(days=1)).isoformat()
+
+
+@api.get("/streak/status")
+async def streak_status(user: dict = Depends(get_current_user)):
+    """Return current streak info and whether claim is available today."""
+    today = _today_utc_date()
+    last = user.get("last_streak_claim_date")
+    streak = int(user.get("streak_current") or 0)
+    available = last != today
+    # Determine which day would be claimed
+    if last == today:
+        next_day = streak
+    elif last == _yesterday_utc_date():
+        next_day = streak + 1
+    else:
+        next_day = 1
+    return {
+        "streak_current": streak,
+        "streak_best": int(user.get("streak_best") or 0),
+        "last_claim_date": last,
+        "available": available,
+        "next_day": next_day,
+        "next_reward": _streak_reward(next_day),
+        "ladder": STREAK_REWARDS,
+        "base_reward": STREAK_BASE,
+    }
+
+
+@api.post("/streak/claim")
+async def streak_claim(user: dict = Depends(get_current_user)):
+    today = _today_utc_date()
+    last = user.get("last_streak_claim_date")
+    if last == today:
+        raise HTTPException(400, "Already claimed today")
+    if last == _yesterday_utc_date():
+        new_streak = int(user.get("streak_current") or 0) + 1
+    else:
+        new_streak = 1
+    reward = _streak_reward(new_streak)
+    new_best = max(int(user.get("streak_best") or 0), new_streak)
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {
+            "$set": {
+                "streak_current": new_streak,
+                "streak_best": new_best,
+                "last_streak_claim_date": today,
+            },
+            "$inc": {"coins_balance": reward},
+        },
+    )
+    return {
+        "ok": True,
+        "streak_current": new_streak,
+        "streak_best": new_best,
+        "reward": reward,
+        "new_balance": int(user.get("coins_balance") or 0) + reward,
+    }
 
 
 # ----------------------- Public content -----------------------
@@ -495,6 +578,34 @@ async def place_bet(body: BetIn, user: dict = Depends(get_current_user)):
 async def my_bets(user: dict = Depends(get_current_user)):
     items = await db.bets.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return items
+
+
+@api.get("/bet-of-the-day")
+async def bet_of_the_day():
+    """Pick one featured prediction per UTC day (deterministic)."""
+    today = _today_utc_date()
+    cached = await db.botd_cache.find_one({"_id": today}, {"_id": 0})
+    if cached and cached.get("prediction_id"):
+        pred = await db.predictions.find_one({"prediction_id": cached["prediction_id"]}, {"_id": 0})
+        if pred and pred.get("status") == "pending":
+            return {"date": today, "prediction": pred}
+
+    # Pick best confidence + odds among pending
+    candidates = await db.predictions.find(
+        {"status": "pending"}, {"_id": 0}
+    ).sort([("confidence", -1), ("odds", -1)]).limit(50).to_list(50)
+    if not candidates:
+        return {"date": today, "prediction": None}
+    # Deterministic-ish: hash by date+title to pick same one all day
+    import hashlib
+    h = int(hashlib.md5(today.encode()).hexdigest(), 16)
+    pick = candidates[h % len(candidates)]
+    await db.botd_cache.update_one(
+        {"_id": today},
+        {"$set": {"prediction_id": pick["prediction_id"], "created_at": iso(now_utc())}},
+        upsert=True,
+    )
+    return {"date": today, "prediction": pick}
 
 
 # ----------------------- Recharges (user side) -----------------------
@@ -1230,7 +1341,7 @@ async def admin_odds_settle_now(_: dict = Depends(require_admin)):
 _odds_task: Optional[asyncio.Task] = None
 
 async def _odds_loop():
-    """Run odds sync (events+markets) and settle (results) periodically per config."""
+    """Run odds sync (events+markets) periodically per config. Settle is MANUAL ONLY."""
     while True:
         try:
             cfg = await odds_get_config()
@@ -1253,27 +1364,7 @@ async def _odds_loop():
                     log.info("Auto odds sync starting...")
                     try: await odds_sync_run()
                     except Exception as e: log.warning(f"sync err: {e}")
-
-                # Settle check: every loop iteration (cheap if no completed events)
-                last_settle = cfg.get("last_settle_at")
-                should_settle = False
-                if not last_settle:
-                    should_settle = True
-                else:
-                    try:
-                        last_dt = datetime.fromisoformat(last_settle)
-                        if last_dt.tzinfo is None:
-                            last_dt = last_dt.replace(tzinfo=timezone.utc)
-                        # settle every 1h (or auto_sync_hours/6, whichever smaller)
-                        gap = max(1, min(hours, 2))
-                        if (now_utc() - last_dt) >= timedelta(hours=gap):
-                            should_settle = True
-                    except Exception:
-                        should_settle = True
-                if should_settle:
-                    log.info("Auto odds settle starting...")
-                    try: await odds_settle_run()
-                    except Exception as e: log.warning(f"settle err: {e}")
+                # Settle is MANUAL ONLY (admin must click the button)
         except Exception as e:
             log.warning(f"odds_loop error: {e}")
         await asyncio.sleep(60 * 30)  # check every 30 min

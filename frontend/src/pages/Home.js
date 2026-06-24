@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../lib/api";
 import { useLang } from "../contexts/LanguageContext";
+import { useAuth } from "../contexts/AuthContext";
 import PredictionCard from "../components/PredictionCard";
 import MarketCard from "../components/MarketCard";
 import Banner from "../components/Banner";
+import StreakWidget from "../components/StreakWidget";
 import { ArrowRight, Lightning, SoccerBall, Horse, Baseball, Ticket, ChartLineUp, Crown } from "@phosphor-icons/react";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1769120062656-23adba3790b3?crop=entropy&cs=srgb&fm=jpg&w=2000&q=80";
@@ -17,6 +19,7 @@ const SPORT_DATA = [
 
 export default function Home() {
   const { t, lang } = useLang();
+  const { user } = useAuth();
   const [picks, setPicks] = useState([]);
   const [markets, setMarkets] = useState([]);
 
@@ -77,6 +80,13 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-10">
         <Banner zone="hero" />
       </section>
+
+      {/* STREAK WIDGET - only for logged users */}
+      {user && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <StreakWidget />
+        </section>
+      )}
 
       {/* SPORTS GRID */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">

@@ -27,15 +27,18 @@ Usuario solicitó una app inspirada en BetsWall (Google Play) con: sección de p
 7. Bilingual ES/EN
 8. User ranking by net profit
 
-## Implemented (2026-05-03)
+## Implemented (2026-05-03 / 2026-06-24)
 ### Backend (`/app/backend/server.py`)
 - Auth: `/api/auth/{register,login,logout,me,language}`, Google session at `/api/auth/google/session`
+- **Welcome bonus**: +100 coins on register (both email and Google signups)
+- **Daily streak system**: `GET /api/streak/status` + `POST /api/streak/claim` (idempotent per UTC day). Rewards: D1=10, D3=30, D7=75, D14=150, D30=500, other days=5
+- **Bet of the Day**: `GET /api/bet-of-the-day` returns one featured pick deterministically per UTC day (cached in `botd_cache` collection)
 - Public: `/api/predictions`, `/api/markets`, `/api/banners`, `/api/payment-methods`, `/api/ranking`
 - Bets: `POST /api/bets` (deducts coins), `GET /api/bets/me`
 - Recharges: `POST /api/recharges`, `GET /api/recharges/me`
 - Push: `GET /api/push/public-key`, `POST /api/push/subscribe`
 - Admin: full CRUD for predictions, markets (with settle that pays winners + refunds void), payment methods, banners, recharges (approve/reject), users (role/coins), notifications send, metrics dashboard
-- **Odds API integration (The Odds API v4)**: `POST /api/admin/odds/sync` (manual), `GET/PATCH /api/admin/odds/config`, `GET /api/admin/odds/sports`. Auto-imports events from Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, MLB. Creates predictions (best home moneyline) + 2 markets per event (1X2 result + Over/Under totals). Background loop runs every N hours per config. First import: 91 predictions + 182 markets from real bookmaker odds.
+- **Odds API integration**: sync auto cada 12h (La Liga + MLB), settle **MANUAL ONLY** via admin button (no consume cuota inesperada). Auto-imports events + creates predictions (best home moneyline) + 2 markets per event (1X2 result + Over/Under totals). Push notifications a usuarios cuando se liquida su apuesta.
 - VAPID keys generated and stored in backend `.env`
 - MongoDB indexes on email/user_id/market_id/banner_id/etc
 

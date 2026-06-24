@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLang } from "../contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
 import { BellRinging, BellSlash, UserCircle } from "@phosphor-icons/react";
+import StreakWidget from "../components/StreakWidget";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -108,6 +109,10 @@ export default function Profile() {
             {profit > 0 ? "+" : ""}{profit}
           </div>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <StreakWidget />
       </div>
 
       <div className="pz-card p-6">
