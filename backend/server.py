@@ -1062,32 +1062,218 @@ async def admin_odds_sync_now(body: Optional[dict] = None, _: dict = Depends(req
     )
 
 
+# ----------------------- Auto-settle -----------------------
+def _parse_total_label(label: str) -> tuple:
+    """Parse 'Over 2.5' or 'Under 8.5' into ('Over', 2.5) / ('Under', 8.5). Returns (None, None) if not parsable."""
+    parts = label.strip().split()
+    if len(parts) >= 2:
+        try:
+            return parts[0], float(parts[-1])
+        except ValueError:
+            return None, None
+    return None, None
+
+
+def _scores_total(scores_list: list) -> float:
+    total = 0.0
+    for s in scores_list or []:
+        try:
+            total += float(s.get("score") or 0)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
+async def odds_settle_run() -> dict:
+    """Fetch results from Odds API for all enabled sports, settle matching open markets."""
+    if not ODDS_API_KEY:
+        raise HTTPException(400, "ODDS_API_KEY not configured")
+    cfg = await odds_get_config()
+    sports = cfg.get("enabled_sports") or list(ODDS_SPORT_MAP.keys())
+    summary = {"checked": 0, "settled": 0, "voided": 0, "skipped": 0, "errors": []}
+
+    async with httpx.AsyncClient(timeout=20) as http:
+        for sport_key in sports:
+            try:
+                r = await http.get(
+                    f"{ODDS_API_BASE}/sports/{sport_key}/scores",
+                    params={"apiKey": ODDS_API_KEY, "daysFrom": 3, "dateFormat": "iso"},
+                )
+                if r.status_code != 200:
+                    summary["errors"].append(f"{sport_key} scores: HTTP {r.status_code}")
+                    continue
+                events = r.json()
+            except Exception as e:
+                summary["errors"].append(f"{sport_key}: {e}")
+                continue
+
+            for ev in events:
+                if not ev.get("completed"):
+                    continue
+                ext_id = ev.get("id")
+                home, away = ev.get("home_team"), ev.get("away_team")
+                scores = ev.get("scores") or []
+                home_s = next((float(s.get("score") or 0) for s in scores if s.get("name") == home), None)
+                away_s = next((float(s.get("score") or 0) for s in scores if s.get("name") == away), None)
+                if home_s is None or away_s is None:
+                    continue
+
+                # h2h
+                h2h_market = await db.markets.find_one(
+                    {"external_id": f"odds:{ext_id}:h2h", "status": "open"}, {"_id": 0})
+                if h2h_market:
+                    summary["checked"] += 1
+                    if home_s > away_s:
+                        winner = home
+                    elif away_s > home_s:
+                        winner = away
+                    else:
+                        winner = ""  # draw -> if "Draw" option exists set it, else void
+                        if any(o["label"] == "Draw" for o in h2h_market["options"]):
+                            winner = "Draw"
+                    await _settle_market_internal(h2h_market, winner)
+                    summary["settled" if winner else "voided"] += 1
+
+                # totals
+                tot_market = await db.markets.find_one(
+                    {"external_id": f"odds:{ext_id}:totals", "status": "open"}, {"_id": 0})
+                if tot_market:
+                    summary["checked"] += 1
+                    total = home_s + away_s
+                    winner_label = ""
+                    # Each option has label like "Over 8.5" / "Under 8.5"
+                    for o in tot_market["options"]:
+                        side, line = _parse_total_label(o["label"])
+                        if line is None:
+                            continue
+                        if side == "Over" and total > line:
+                            winner_label = o["label"]; break
+                        if side == "Under" and total < line:
+                            winner_label = o["label"]; break
+                    await _settle_market_internal(tot_market, winner_label)
+                    summary["settled" if winner_label else "voided"] += 1
+
+                # Also resolve auto-imported predictions
+                pred = await db.predictions.find_one(
+                    {"external_id": f"odds:{ext_id}:h2h", "status": "pending"}, {"_id": 0})
+                if pred:
+                    # pred is "home to win"
+                    if home_s > away_s:
+                        new_status = "won"
+                    elif home_s == away_s:
+                        new_status = "void"
+                    else:
+                        new_status = "lost"
+                    await db.predictions.update_one(
+                        {"prediction_id": pred["prediction_id"]},
+                        {"$set": {"status": new_status, "settled_at": iso(now_utc())}})
+
+    summary["completed_at"] = iso(now_utc())
+    await db.odds_config.update_one(
+        {"_id": "main"},
+        {"$set": {"last_settle_at": iso(now_utc()), "last_settle_summary": summary}},
+        upsert=True,
+    )
+    log.info(f"Odds settle: settled={summary['settled']} voided={summary['voided']} errors={len(summary['errors'])}")
+    return summary
+
+
+async def _settle_market_internal(market: dict, winning_label: str):
+    """Same logic as admin_settle_market but callable internally."""
+    if market.get("status") == "settled":
+        return
+    bets = await db.bets.find({"market_id": market["market_id"], "status": "pending"}, {"_id": 0}).to_list(10000)
+    user_payouts: Dict[str, dict] = {}  # user_id -> {coins, won, market}
+    for b in bets:
+        if not winning_label:
+            await db.users.update_one({"user_id": b["user_id"]}, {"$inc": {"coins_balance": b["coins"]}})
+            await db.bets.update_one({"bet_id": b["bet_id"]},
+                                     {"$set": {"status": "void", "payout_diff": 0,
+                                               "settled_at": iso(now_utc())}})
+        elif b["option_label"] == winning_label:
+            payout = b["potential_payout"]
+            await db.users.update_one({"user_id": b["user_id"]}, {"$inc": {"coins_balance": payout}})
+            await db.bets.update_one({"bet_id": b["bet_id"]},
+                                     {"$set": {"status": "won",
+                                               "payout_diff": payout - b["coins"],
+                                               "settled_at": iso(now_utc())}})
+            user_payouts[b["user_id"]] = {"coins": payout, "won": True, "title": market["title"]}
+        else:
+            await db.bets.update_one({"bet_id": b["bet_id"]},
+                                     {"$set": {"status": "lost",
+                                               "payout_diff": -b["coins"],
+                                               "settled_at": iso(now_utc())}})
+            user_payouts.setdefault(b["user_id"], {"coins": 0, "won": False, "title": market["title"]})
+
+    await db.markets.update_one(
+        {"market_id": market["market_id"]},
+        {"$set": {"status": "settled", "winning_label": winning_label,
+                  "settled_at": iso(now_utc()), "auto_settled": True}})
+
+    # Push notify users with bets
+    for uid, info in user_payouts.items():
+        u = await db.users.find_one({"user_id": uid}, {"_id": 0})
+        if u and u.get("push_sub"):
+            if info["won"]:
+                msg = f"GANASTE {info['coins']} coins en {info['title']}"
+            else:
+                msg = f"Resultado de {info['title']}: no fue esta vez."
+            send_push_to(u["push_sub"], {"title": "PicksZone", "body": msg, "url": "/profile"})
+
+
+@api.post("/admin/odds/settle")
+async def admin_odds_settle_now(_: dict = Depends(require_admin)):
+    return await odds_settle_run()
+
+
 # Background scheduler
 _odds_task: Optional[asyncio.Task] = None
 
 async def _odds_loop():
-    """Run odds sync every N hours per config."""
+    """Run odds sync (events+markets) and settle (results) periodically per config."""
     while True:
         try:
             cfg = await odds_get_config()
             if cfg.get("auto_sync_enabled") and ODDS_API_KEY:
                 last = cfg.get("last_sync_at")
                 hours = cfg.get("auto_sync_hours", 6)
-                should_run = False
+                should_sync = False
                 if not last:
-                    should_run = True
+                    should_sync = True
                 else:
                     try:
                         last_dt = datetime.fromisoformat(last)
                         if last_dt.tzinfo is None:
                             last_dt = last_dt.replace(tzinfo=timezone.utc)
                         if (now_utc() - last_dt) >= timedelta(hours=hours):
-                            should_run = True
+                            should_sync = True
                     except Exception:
-                        should_run = True
-                if should_run:
+                        should_sync = True
+                if should_sync:
                     log.info("Auto odds sync starting...")
-                    await odds_sync_run()
+                    try: await odds_sync_run()
+                    except Exception as e: log.warning(f"sync err: {e}")
+
+                # Settle check: every loop iteration (cheap if no completed events)
+                last_settle = cfg.get("last_settle_at")
+                should_settle = False
+                if not last_settle:
+                    should_settle = True
+                else:
+                    try:
+                        last_dt = datetime.fromisoformat(last_settle)
+                        if last_dt.tzinfo is None:
+                            last_dt = last_dt.replace(tzinfo=timezone.utc)
+                        # settle every 1h (or auto_sync_hours/6, whichever smaller)
+                        gap = max(1, min(hours, 2))
+                        if (now_utc() - last_dt) >= timedelta(hours=gap):
+                            should_settle = True
+                    except Exception:
+                        should_settle = True
+                if should_settle:
+                    log.info("Auto odds settle starting...")
+                    try: await odds_settle_run()
+                    except Exception as e: log.warning(f"settle err: {e}")
         except Exception as e:
             log.warning(f"odds_loop error: {e}")
         await asyncio.sleep(60 * 30)  # check every 30 min

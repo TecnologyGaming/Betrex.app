@@ -631,6 +631,16 @@ function OddsTab() {
     finally { setBusy(false); }
   };
 
+  const settleNow = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const { data } = await api.post("/admin/odds/settle");
+      setMsg({ ok: true, text: `${lang === "es" ? "Liquidados" : "Settled"}: ${data.settled} · Void: ${data.voided} · ${lang === "es" ? "Revisados" : "Checked"}: ${data.checked}` });
+      load();
+    } catch (e) { setMsg({ ok: false, text: e?.response?.data?.detail || "Error" }); }
+    finally { setBusy(false); }
+  };
+
   if (!cfg) return <div className="text-zinc-500">Loading...</div>;
 
   // Filter sports relevant to us (soccer + baseball)
@@ -736,7 +746,21 @@ function OddsTab() {
             <CloudArrowDown size={16} weight="bold" />
             {busy ? "..." : (lang === "es" ? "Sincronizar ahora" : "Sync now")}
           </button>
+          <button onClick={settleNow} disabled={busy} className="btn-secondary" data-testid="odds-settle-now">
+            {busy ? "..." : (lang === "es" ? "Liquidar resultados" : "Settle results")}
+          </button>
         </div>
+
+        {cfg.last_settle_at && (
+          <div className="border border-zinc-800 rounded-md p-3 text-xs text-zinc-400">
+            <span className="label !mb-0">{lang === "es" ? "Última liquidación" : "Last settle"}:</span> {new Date(cfg.last_settle_at).toLocaleString()}
+            {cfg.last_settle_summary && (
+              <span className="ml-2 text-zinc-500">
+                · settled: {cfg.last_settle_summary.settled} · void: {cfg.last_settle_summary.voided} · checked: {cfg.last_settle_summary.checked}
+              </span>
+            )}
+          </div>
+        )}
 
         {msg && (
           <div className={`text-sm ${msg.ok ? "text-[#00e676]" : "text-[#ff3b30]"}`} data-testid="odds-msg">{msg.text}</div>
