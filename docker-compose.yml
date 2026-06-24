@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: pickszone_mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - pz_net
+    # Internal only — do not expose port to host
+    # If you really need external access, add: ports: ["127.0.0.1:27017:27017"]
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pickszone_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: ${DB_NAME:-pickszone_db}
+    depends_on:
+      - mongo
+    networks:
+      - pz_net
+    # Backend only reachable via the reverse proxy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Build-time public URL of your app (your domain)
+        REACT_APP_BACKEND_URL: ${PUBLIC_URL:-https://pickszone.com}
+    container_name: pickszone_frontend
+    restart: unless-stopped
+    networks:
+      - pz_net
+
+  # Single nginx that fronts BOTH frontend (port 80 root) and backend (path /api)
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: pickszone_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./proxy/certs:/etc/nginx/certs:ro          # mount your TLS certs here
+      - ./proxy/letsencrypt:/var/www/letsencrypt   # for ACME challenges
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - pz_net
+
+networks:
+  pz_net:
+    driver: bridge
+
+volumes:
+  mongo_data:
