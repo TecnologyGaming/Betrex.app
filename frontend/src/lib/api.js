@@ -1,6 +1,19 @@
 import axios from "axios";
 
-const API_BASE = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// Prefer same-origin (no CORS, cookies always work).
+// Fallback to env var only if explicitly different host is required.
+const ENV_URL = process.env.REACT_APP_BACKEND_URL || "";
+const SAME_ORIGIN = typeof window !== "undefined" ? window.location.origin : "";
+
+// Use env URL only when it points to the SAME host as the page; otherwise same-origin.
+let API_BASE = `${SAME_ORIGIN}/api`;
+try {
+  if (ENV_URL) {
+    const envHost = new URL(ENV_URL).host;
+    const curHost = typeof window !== "undefined" ? window.location.host : "";
+    if (envHost === curHost) API_BASE = `${ENV_URL.replace(/\/$/, "")}/api`;
+  }
+} catch (_) {}
 
 export const api = axios.create({
   baseURL: API_BASE,
