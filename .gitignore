@@ -53,3 +53,9 @@ test_result.md
 design_guidelines.json
 yarn.lock.backup
 frontend/node_modules/.cache/default-development/0.pack
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
