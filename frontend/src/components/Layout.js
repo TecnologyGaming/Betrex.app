@@ -40,7 +40,7 @@ export default function Layout({ children }) {
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/70 border-b border-zinc-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2 group" data-testid="logo-link">
-            <img src="/logo.png" alt="BetRex" className="h-12 sm:h-14 w-auto group-hover:opacity-80 transition-opacity" />
+            <img src="/logo.png" alt="BetRex" className="h-20 sm:h-24 w-auto group-hover:opacity-80 transition-opacity" />
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">
