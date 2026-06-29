@@ -1,76 +1,55 @@
-# PicksZone
+# BetRex.app
 
 Plataforma de pronósticos deportivos y mercados prop con coins virtuales, panel admin completo y pagos vía Stripe.
 
-**Stack**: React 19 · FastAPI · MongoDB · Tailwind · Docker
+**Stack**: React 19 · FastAPI · MongoDB · Docker
 
 ---
 
-## ✨ Features
-- 🎯 **Pronósticos** filtrables por deporte (Fútbol, Caballos, Béisbol, Lotería)
-- ⚡ **Mercados Prop** con coins virtuales (Over/Under, 1X2, faltas, tarjetas)
-- 🔐 **Auth**: email/JWT + Google OAuth (Emergent)
-- 💳 **Pagos**: Zelle, Binance, Stripe Checkout (con webhook), métodos editables desde admin
-- 🎁 **Engagement**: bono de bienvenida, racha diaria, "Bet of the Day"
-- 🏆 **Ranking** de jugadores por P/L
-- 🔔 **Web Push notifications** (VAPID)
-- 🌍 **Bilingüe ES/EN**
-- 📊 **Admin panel** completo: predicciones, mercados, banners, recargas, usuarios, push, bonos, settings de Stripe y Odds API
-- 🔄 **Auto-sync** de eventos y cuotas desde [The Odds API](https://the-odds-api.com) (gratis 500 req/mes)
-- 🧾 **Auto-settle** de mercados con resultados reales
+## 🚀 Despliegue en tu VPS (Hostinger) → `betrex.app`
 
----
+Tu VPS ya tiene varios servicios corriendo, por lo que **BetRex se despliega en el puerto interno 8081** (libre) y tu reverse proxy del VPS (Nginx Proxy Manager u otro) redirige `betrex.app` a ese puerto. No tocamos los puertos 80/443 que ya tienes ocupados.
 
-## 🚀 Despliegue en VPS de Hostinger (recomendado)
+### Puertos que usaremos (todos libres en tu VPS)
+- **8081** → proxy interno de BetRex (expuesto al host)
+- Mongo + backend + frontend → solo en la red interna de Docker (no exponen puertos al host)
 
-### Requisitos previos
-- VPS con Ubuntu 22.04+ (Hostinger ofrece KVM 1+, 2 GB RAM mínimo)
-- Dominio apuntando a la IP de tu VPS (Hostinger → hPanel → DNS)
-- Acceso SSH como root o usuario con sudo
-
-### Paso 1 — Instalar Docker y dependencias
+### Paso 1 — SSH a tu VPS
 
 ```bash
-# Conéctate por SSH
 ssh root@TU_IP_VPS
-
-# Instala Docker y docker-compose
-curl -fsSL https://get.docker.com | sh
-apt-get install -y docker-compose-plugin git
-
-# Verifica
-docker --version
-docker compose version
 ```
 
-### Paso 2 — Clonar el repo
+### Paso 2 — Instalar Docker (si no lo tienes)
+
+```bash
+curl -fsSL https://get.docker.com | sh
+apt-get install -y docker-compose-plugin git
+```
+
+### Paso 3 — Clonar el repo
 
 ```bash
 cd /opt
-git clone https://github.com/TU_USUARIO/pickszone.git
-cd pickszone
+git clone https://github.com/TU_USUARIO/betrex.git
+cd betrex
 ```
 
-### Paso 3 — Configurar variables de entorno
+### Paso 4 — Configurar las variables de entorno
 
 ```bash
-# Copia los templates
 cp .env.example .env
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
-
-# Edita cada uno y rellena los valores reales
-nano .env              # PUBLIC_URL=https://tudominio.com
-nano backend/.env      # JWT_SECRET, VAPID, ODDS_API_KEY, STRIPE...
-nano frontend/.env     # REACT_APP_BACKEND_URL=https://tudominio.com
+nano backend/.env
 ```
 
-Genera el `JWT_SECRET`:
+Genera tu **JWT_SECRET**:
 ```bash
 docker run --rm python:3.11-slim python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Genera las VAPID keys (para push notifications):
+Genera tus **VAPID keys** (para push notifications):
 ```bash
 docker run --rm python:3.11-slim sh -c "pip install py_vapid cryptography >/dev/null && python -c \"
 from py_vapid import Vapid01
@@ -84,64 +63,103 @@ print('VAPID_PRIVATE_KEY_B64=' + base64.b64encode(priv_pem.encode()).decode())
 \""
 ```
 
-### Paso 4 — Configurar el proxy nginx
+Pega ambos valores en `backend/.env`. Edita también:
+- `ADMIN_PASSWORD` (¡cámbiala!)
+- `ODDS_API_KEY` (gratis en https://the-odds-api.com — ya tienes una: `1b9c7ffc3d0e88f65a2d89823be9bb19`)
 
-```bash
-# Reemplaza YOUR_DOMAIN por tu dominio real
-sed -i 's/YOUR_DOMAIN/tudominio.com/g' proxy/nginx.conf
-```
+### Paso 5 — Configurar el dominio
 
-### Paso 5 — Generar certificado SSL con Let's Encrypt
-
-```bash
-# 1) Levanta primero solo el proxy en modo HTTP (sin SSL)
-# Comenta temporalmente el bloque "server { listen 443 ssl ... }" del proxy/nginx.conf
-# y deja solo el bloque HTTP
-
-# 2) Instala certbot
-apt-get install -y certbot
-
-# 3) Solicita el certificado
-mkdir -p proxy/letsencrypt
-certbot certonly --webroot -w ./proxy/letsencrypt -d tudominio.com -d www.tudominio.com \
-  --email tu_email@correo.com --agree-tos --no-eff-email
-
-# 4) Copia los certificados al volumen del proxy
-mkdir -p proxy/certs
-cp /etc/letsencrypt/live/tudominio.com/fullchain.pem proxy/certs/
-cp /etc/letsencrypt/live/tudominio.com/privkey.pem proxy/certs/
-
-# 5) Restaura el bloque HTTPS en proxy/nginx.conf
-```
-
-> **Tip**: configura un cron para renovar el certificado cada 60 días:  
-> `0 3 1 */2 * certbot renew && cp /etc/letsencrypt/live/tudominio.com/*.pem /opt/pickszone/proxy/certs/ && docker compose restart proxy`
+En tu panel de Hostinger → DNS → apunta el A record de `betrex.app` y `www.betrex.app` a la IP de tu VPS.
 
 ### Paso 6 — Levantar todo
 
 ```bash
-cd /opt/pickszone
 docker compose up -d --build
 ```
 
-Verifica el estado:
+Verifica:
 ```bash
 docker compose ps
 docker compose logs -f backend
 ```
 
-### Paso 7 — Acceder
-- **Frontend**: https://tudominio.com
-- **Admin**: https://tudominio.com/login → usa el email/contraseña que pusiste en `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+Deberías ver: `betrex_mongo`, `betrex_backend`, `betrex_frontend`, `betrex_proxy` → todos "Up".
 
-### Paso 8 — Configurar Stripe (opcional, para pagos con tarjeta)
-1. Ve a https://dashboard.stripe.com/apikeys y copia tus 3 claves
-2. En tu app: admin → **Métodos de pago** → editar **Stripe** → pegar las claves
-3. En Stripe Dashboard → Developers → Webhooks → "Add endpoint"
-4. URL del endpoint: `https://tudominio.com/api/webhook/stripe`
-5. Eventos: `checkout.session.completed`
-6. Copia el "Signing secret" (`whsec_...`) y pégalo también en admin
-7. ¡Listo! Los pagos con tarjeta funcionarán automáticamente
+### Paso 7 — Configurar tu reverse proxy del VPS
+
+Tu VPS usa un proxy en puertos 80/443 (probablemente Nginx Proxy Manager, Caddy o Apache).
+
+**Opción A — Si usas Nginx Proxy Manager** (lo más probable, va en :81/:9443):
+1. Abre el panel del NPM
+2. **Proxy Hosts** → "Add Proxy Host"
+3. Configura:
+   - Domain Names: `betrex.app`, `www.betrex.app`
+   - Scheme: `http`
+   - Forward Hostname / IP: `127.0.0.1`
+   - Forward Port: `8081`
+   - ✅ Cache Assets
+   - ✅ Block Common Exploits
+   - ✅ Websockets Support
+4. Pestaña **SSL**: Request a new SSL Certificate (Let's Encrypt), marca "Force SSL" y "HTTP/2"
+5. Guardar → ¡Listo!
+
+**Opción B — Si usas nginx directo en el host**:
+
+```bash
+cat > /etc/nginx/sites-available/betrex.app <<'EOF'
+server {
+    listen 80;
+    server_name betrex.app www.betrex.app;
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+ln -s /etc/nginx/sites-available/betrex.app /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+certbot --nginx -d betrex.app -d www.betrex.app
+```
+
+### Paso 8 — Acceder
+- 🌍 **App**: https://betrex.app
+- 🔐 **Admin**: https://betrex.app/login → `admin@betrex.app` / la contraseña que pusiste en `ADMIN_PASSWORD`
+
+### Paso 9 (opcional) — Stripe
+1. https://dashboard.stripe.com/apikeys → copia tus 3 claves
+2. En BetRex: admin → **Métodos de pago** → editar **Stripe** → pegar las claves
+3. En Stripe Dashboard → Webhooks → "Add endpoint":
+   - URL: `https://betrex.app/api/webhook/stripe`
+   - Events: `checkout.session.completed`
+4. Copia el "Signing secret" → pégalo también en admin BetRex
+
+---
+
+## 🔧 Comandos útiles
+
+```bash
+# Logs
+docker compose logs -f backend
+docker compose logs -f proxy
+
+# Reiniciar
+docker compose restart backend
+
+# Actualizar tras un git pull
+git pull && docker compose up -d --build
+
+# Backup MongoDB
+docker compose exec mongo mongodump --archive=/data/db/backup.gz --gzip
+docker compose cp mongo:/data/db/backup.gz ./backup-$(date +%Y%m%d).gz
+
+# Cambiar el puerto interno (si 8081 te molesta)
+echo "PROXY_PORT=9000" >> .env
+docker compose up -d
+# luego actualiza tu reverse proxy para apuntar a 127.0.0.1:9000
+```
 
 ---
 
@@ -153,36 +171,36 @@ cd backend
 pip install -r requirements.txt
 uvicorn server:app --reload --port 8001
 
-# Frontend (en otra terminal)
+# Frontend
 cd frontend
 yarn install
 yarn start
 ```
 
-MongoDB local: `brew install mongodb-community` (Mac) o `apt install -y mongodb` (Linux).
-
 ---
 
-## 📁 Estructura del repo
+## 📁 Estructura
 
 ```
-pickszone/
-├── backend/              # FastAPI + Motor
-│   ├── server.py        # toda la API
+betrex/
+├── backend/              # FastAPI
+│   ├── server.py
 │   ├── requirements.txt
 │   ├── Dockerfile
 │   └── .env.example
-├── frontend/            # React + Tailwind
+├── frontend/             # React + Tailwind
 │   ├── src/
 │   ├── public/
-│   ├── package.json
+│   │   ├── logo.png      # Logo principal
+│   │   ├── icon-192.png
+│   │   ├── icon-512.png
+│   │   ├── manifest.json # PWA manifest
+│   │   └── sw.js         # Service worker (push)
 │   ├── Dockerfile
 │   ├── nginx.conf
 │   └── .env.example
-├── proxy/               # reverse proxy (terminación TLS)
-│   ├── nginx.conf
-│   ├── certs/          # certificados Let's Encrypt
-│   └── letsencrypt/    # challenge ACME
+├── proxy/
+│   └── nginx-app.conf    # Proxy interno backend+frontend
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
@@ -190,44 +208,34 @@ pickszone/
 
 ---
 
-## 🔧 Comandos útiles
-
-```bash
-# Ver logs
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f proxy
-
-# Reiniciar un servicio
-docker compose restart backend
-
-# Reconstruir después de un git pull
-git pull
-docker compose up -d --build
-
-# Backup de MongoDB
-docker compose exec mongo mongodump --archive=/data/db/backup.gz --gzip
-docker compose cp mongo:/data/db/backup.gz ./backup-$(date +%Y%m%d).gz
-
-# Acceso al shell de MongoDB
-docker compose exec mongo mongosh pickszone_db
-```
-
----
-
 ## 🔐 Credenciales por defecto
 
-- **Admin**: `admin@pickszone.com` / `Admin1234!` (CÁMBIALAS en producción editando `backend/.env`)
+- Admin: `admin@betrex.app` / `Admin1234!` (**cambia el password en `backend/.env` antes de desplegar**)
 
 ---
 
-## 📡 APIs externas usadas
+## 📡 APIs externas
 
 | Servicio | Para qué | Plan free |
 |---|---|---|
-| [The Odds API](https://the-odds-api.com) | Cuotas y resultados | 500 req/mes |
+| The Odds API | Cuotas reales + resultados (La Liga, MLB) | 500 req/mes |
 | Stripe | Pagos con tarjeta | 2.9% + $0.30 por transacción |
-| Emergent Google Auth | Login social | gratis |
+| Emergent Google Auth | Login social con Google | gratis |
+
+---
+
+## 📱 Pasar a Google Play (TWA)
+
+Una vez la web esté en https://betrex.app funcionando, puedes empaquetarla como app Android con [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap):
+
+```bash
+npm install -g @bubblewrap/cli
+bubblewrap init --manifest=https://betrex.app/manifest.json
+bubblewrap build
+# sube el .aab a Google Play Console ($25 una sola vez)
+```
+
+⚠️ **Ojo**: Google Play tiene políticas estrictas con apps de apuestas. Asegúrate de dejar claro que los coins son virtuales y sin valor monetario.
 
 ---
 

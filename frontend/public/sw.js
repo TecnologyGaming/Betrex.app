@@ -1,9 +1,9 @@
-/* PicksZone push service worker */
+/* BetRex push service worker */
 self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
 self.addEventListener("push", (event) => {
-  let data = { title: "PicksZone", body: "Update", url: "/" };
+  let data = { title: "BetRex", body: "Update", url: "/" };
   try { if (event.data) data = { ...data, ...event.data.json() }; } catch (_) {}
   event.waitUntil(
     self.registration.showNotification(data.title, {

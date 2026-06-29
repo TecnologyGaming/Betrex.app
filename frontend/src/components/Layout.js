@@ -40,12 +40,7 @@ export default function Layout({ children }) {
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/70 border-b border-zinc-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2 group" data-testid="logo-link">
-            <div className="w-8 h-8 rounded-md bg-[#d4ff00] grid place-items-center group-hover:scale-105 transition-transform">
-              <Lightning weight="fill" size={20} color="#000" />
-            </div>
-            <span className="font-display font-black text-2xl tracking-tighter uppercase">
-              Picks<span className="text-[#d4ff00]">Zone</span>
-            </span>
+            <img src="/logo.png" alt="BetRex" className="h-10 sm:h-11 w-auto group-hover:scale-105 transition-transform" />
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">
@@ -185,10 +180,7 @@ export default function Layout({ children }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid md:grid-cols-3 gap-8 text-sm">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded-md bg-[#d4ff00] grid place-items-center">
-                <Lightning weight="fill" size={18} color="#000" />
-              </div>
-              <span className="font-display font-black text-xl uppercase">PicksZone</span>
+              <img src="/logo.png" alt="BetRex" className="h-10 w-auto" />
             </div>
             <p className="text-zinc-400 leading-relaxed">
               {lang === "es"
@@ -213,7 +205,7 @@ export default function Layout({ children }) {
           </div>
         </div>
         <div className="border-t border-zinc-900 py-4 text-center text-xs text-zinc-500">
-          © {new Date().getFullYear()} PicksZone · {lang === "es" ? "Apuesta con responsabilidad" : "Bet responsibly"} · 18+
+          © {new Date().getFullYear()} BetRex.app · {lang === "es" ? "Apuesta con responsabilidad" : "Bet responsibly"} · 18+
         </div>
       </footer>
     </div>

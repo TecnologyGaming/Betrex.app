@@ -1,4 +1,4 @@
-"""PicksZone backend - FastAPI + MongoDB."""
+"""BetRex backend - FastAPI + MongoDB."""
 from dotenv import load_dotenv
 from pathlib import Path
 ROOT_DIR = Path(__file__).parent
@@ -26,11 +26,11 @@ from pywebpush import webpush, WebPushException
 # ----------------------- Setup -----------------------
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGO = "HS256"
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@pickszone.com")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@betrex.app")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin1234!")
 VAPID_PUBLIC = os.environ["VAPID_PUBLIC_KEY"]
 VAPID_PRIVATE_PEM = base64.b64decode(os.environ["VAPID_PRIVATE_KEY_B64"]).decode()
-VAPID_CONTACT = os.environ.get("VAPID_CONTACT_EMAIL", "mailto:admin@pickszone.com")
+VAPID_CONTACT = os.environ.get("VAPID_CONTACT_EMAIL", "mailto:admin@betrex.app")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 DEFAULT_STRIPE_KEY = os.environ.get("STRIPE_API_KEY", "")
@@ -50,11 +50,11 @@ mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
-app = FastAPI(title="PicksZone API")
+app = FastAPI(title="BetRex API")
 api = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger("pickszone")
+log = logging.getLogger("betrex")
 
 # ----------------------- Helpers -----------------------
 def now_utc() -> datetime:
@@ -767,7 +767,7 @@ async def stripe_checkout_create(body: StripeCheckoutIn, request: Request,
             "user_email": user["email"],
             "coins": str(coins),
             "amount_usd": str(amount),
-            "source": "pickszone_wallet",
+            "source": "betrex_wallet",
         },
     )
     try:
@@ -862,7 +862,7 @@ async def stripe_checkout_status(session_id: str, user: dict = Depends(get_curre
             u = await db.users.find_one({"user_id": txn["user_id"]}, {"_id": 0})
             if u and u.get("push_sub"):
                 send_push_to(u["push_sub"], {
-                    "title": "PicksZone",
+                    "title": "BetRex",
                     "body": f"+{txn['coins']} coins acreditados (Stripe)",
                     "url": "/wallet",
                 })
@@ -1153,7 +1153,7 @@ async def admin_review_recharge(rid: str, body: RechargeReviewIn, _: dict = Depe
     user = await db.users.find_one({"user_id": rec["user_id"]}, {"_id": 0})
     if user and user.get("push_sub"):
         msg = f"Recarga {new_status.upper()}: ${rec['amount_usd']}"
-        send_push_to(user["push_sub"], {"title": "PicksZone", "body": msg, "url": "/wallet"})
+        send_push_to(user["push_sub"], {"title": "BetRex", "body": msg, "url": "/wallet"})
     return {"ok": True, "status": new_status}
 
 
@@ -1614,7 +1614,7 @@ async def _settle_market_internal(market: dict, winning_label: str):
                 msg = f"GANASTE {info['coins']} coins en {info['title']}"
             else:
                 msg = f"Resultado de {info['title']}: no fue esta vez."
-            send_push_to(u["push_sub"], {"title": "PicksZone", "body": msg, "url": "/profile"})
+            send_push_to(u["push_sub"], {"title": "BetRex", "body": msg, "url": "/profile"})
 
 
 @api.post("/admin/odds/settle")
@@ -1658,7 +1658,7 @@ async def _odds_loop():
 # ----------------------- Bootstrap -----------------------
 @api.get("/")
 async def root():
-    return {"ok": True, "service": "PicksZone API"}
+    return {"ok": True, "service": "BetRex API"}
 
 
 app.include_router(api)
@@ -1711,8 +1711,8 @@ async def startup():
     if await db.payment_methods.count_documents({}) == 0:
         defaults = [
             {"payment_method_id": f"pm_{uuid.uuid4().hex[:8]}", "name": "Zelle",
-             "type": "zelle", "instructions": "Envía a admin@pickszone.com y sube el comprobante.",
-             "account_info": "admin@pickszone.com", "config": {}, "active": True, "order": 1,
+             "type": "zelle", "instructions": "Envía a admin@betrex.app y sube el comprobante.",
+             "account_info": "admin@betrex.app", "config": {}, "active": True, "order": 1,
              "icon_url": None, "created_at": iso(now_utc())},
             {"payment_method_id": f"pm_{uuid.uuid4().hex[:8]}", "name": "Stripe",
              "type": "stripe",
@@ -1737,7 +1737,7 @@ async def startup():
              "created_at": iso(now_utc())},
         ])
 
-    log.info("PicksZone backend ready")
+    log.info("BetRex backend ready")
 
     # Start odds auto-sync loop
     global _odds_task

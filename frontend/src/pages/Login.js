@@ -31,10 +31,10 @@ export default function Login() {
   return (
     <div className="min-h-[calc(100vh-200px)] grid place-items-center px-4 py-12">
       <div className="pz-card p-8 max-w-md w-full">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-9 h-9 rounded-md bg-[#d4ff00] grid place-items-center"><Lightning weight="fill" size={20} color="#000" /></div>
-          <h1 className="font-display font-black text-3xl uppercase tracking-tighter">{t("auth.loginTitle")}</h1>
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <img src="/logo.png" alt="BetRex" className="h-12 w-auto" />
         </div>
+        <h1 className="font-display font-black text-3xl uppercase tracking-tighter text-center mb-6">{t("auth.loginTitle")}</h1>
         <form onSubmit={submit} className="space-y-4">
           <div>
             <label className="label">{t("common.email")}</label>
