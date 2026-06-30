@@ -60,11 +60,26 @@ export default function PredictionDetail() {
         </div>
 
         <div className="mt-6">
-          <div className="label">{t("common.event")}</div>
-          <div className="text-xl font-bold mt-1">{p.pick}</div>
+          <div className="label">{p.is_premium ? "★ PICK PREMIUM" : t("common.event")}</div>
+          {p.pick.includes("🔒") ? (
+            <div className="mt-2 p-6 rounded-lg border border-[#d4ff00]/30 bg-gradient-to-br from-zinc-950 via-[#d4ff00]/5 to-black text-center space-y-4">
+              <span className="text-4xl block">🔒</span>
+              <h3 className="font-bold text-[#d4ff00] uppercase tracking-wider text-sm">
+                PRONÓSTICO PREMIUM EXCLUSIVO
+              </h3>
+              <p className="text-zinc-400 text-xs max-w-md mx-auto leading-relaxed">
+                Este pronóstico requiere una suscripción Premium activa de BetRex. Únete a nuestro paquete mensual para desbloquear este pick de élite, su stake recomendado y el análisis de expertos.
+              </p>
+              <Link to="/wallet" className="btn-primary inline-flex items-center gap-1.5 !px-5 !py-2.5 text-xs font-black" style={{ backgroundColor: '#d4ff00', color: 'black' }}>
+                Activar Suscripción Premium (500 🪙)
+              </Link>
+            </div>
+          ) : (
+            <div className="text-xl font-bold mt-1 text-[#d4ff00]">{p.pick}</div>
+          )}
         </div>
 
-        {p.analysis && (
+        {!p.pick.includes("🔒") && p.analysis && (
           <div className="mt-6">
             <div className="label">{t("common.analysis")}</div>
             <p className="text-zinc-300 mt-1 whitespace-pre-wrap leading-relaxed">{p.analysis}</p>

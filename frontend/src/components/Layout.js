@@ -40,7 +40,7 @@ export default function Layout({ children }) {
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/70 border-b border-zinc-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2 group" data-testid="logo-link">
-            <img src="/logo.png" alt="BetRex" className="h-20 sm:h-24 w-auto group-hover:opacity-80 transition-opacity" />
+            <img src="/logo.png" alt="BetRex" className="max-w-[180px] h-[50px] object-contain group-hover:opacity-80 transition-opacity" />
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">
@@ -202,6 +202,19 @@ export default function Layout({ children }) {
           </div>
           <div>
             <Banner zone="footer" />
+          </div>
+
+          <div className="md:col-span-3 border-t border-zinc-900/50 pt-6 mt-2">
+            <h4 className="text-[#d4ff00] font-bold text-xs uppercase tracking-wider mb-2">
+              {lang === "es" ? "🔞 Juego Responsable y Descargo de Responsabilidad" : "🔞 Responsible Gaming & Disclaimer"}
+            </h4>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              {lang === "es" ? (
+                "BetRex es una plataforma de entretenimiento y simulación deportiva. Todo el sistema funciona única y exclusivamente con monedas virtuales sin valor económico real. No se ofrecen juegos de azar con dinero real, apuestas deportivas reales, ni la posibilidad de ganar dinero u obsequios de valor real. La participación, la simulación o el éxito en nuestro simulador de pronósticos no garantizan el éxito futuro en apuestas con dinero real. Juega de manera responsable, informada y moderada. Si consideras que estás desarrollando un problema relacionado con el juego, te instamos a buscar orientación y ayuda profesional."
+              ) : (
+                "BetRex is an entertainment and sports simulation platform. The entire system operates solely and exclusively with virtual coins that have no real monetary value. We do not offer real money gambling, real sports betting, or any opportunity to win real money or prizes of monetary value. Practice, simulation, or success in our predictions simulator does not imply or guarantee future success in real money gambling. Play responsibly, mindfully, and in moderation. If you feel you may be developing a gambling-related issue, we strongly encourage you to seek professional support and guidance."
+              )}
+            </p>
           </div>
         </div>
         <div className="border-t border-zinc-900 py-4 text-center text-xs text-zinc-500">

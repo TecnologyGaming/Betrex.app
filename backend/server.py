@@ -188,6 +188,7 @@ class PredictionIn(BaseModel):
     analysis: str = ""
     starts_at: Optional[str] = None
     image_url: Optional[str] = None
+    is_premium: bool = False
 
 
 class PredictionStatusIn(BaseModel):
@@ -321,6 +322,65 @@ async def logout(response: Response, request: Request):
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return serialize(user)
+
+
+@api.post("/users/subscribe-monthly")
+async def subscribe_monthly(user: dict = Depends(get_current_user)):
+    # Obtener el saldo actual de monedas del usuario
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not u:
+        raise HTTPException(404, "User not found")
+        
+    cost = 500
+    if u.get("coins_balance", 0) < cost:
+        raise HTTPException(400, "Saldo de monedas insuficiente. Necesitas al menos 500 monedas.")
+        
+    # Calcular nueva fecha de expiración
+    now = now_utc()
+    current_until = u.get("premium_until")
+    if current_until:
+        try:
+            current_dt = datetime.fromisoformat(current_until)
+            if current_dt.tzinfo is None:
+                current_dt = current_dt.replace(tzinfo=timezone.utc)
+            if current_dt > now:
+                new_until = current_dt + timedelta(days=30)
+            else:
+                new_until = now + timedelta(days=30)
+        except Exception:
+            new_until = now + timedelta(days=30)
+    else:
+        new_until = now + timedelta(days=30)
+        
+    # Actualizar saldo de monedas y fecha de expiración
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$inc": {"coins_balance": -cost}, "$set": {"premium_until": iso(new_until)}}
+    )
+    
+    # Crear registro en el historial de transacciones como débito de monedas
+    await db.recharges.insert_one({
+        "recharge_id": f"rch_{uuid.uuid4().hex[:10]}",
+        "user_id": user["user_id"],
+        "user_email": u["email"],
+        "user_name": u.get("name", ""),
+        "payment_method_id": "subscription",
+        "payment_method_name": "Suscripción Premium",
+        "amount_usd": 0.0,
+        "coins": -cost,
+        "proof_note": "Suscripción Premium Mensual BetRex.app",
+        "proof_url": None,
+        "status": "approved",
+        "created_at": iso(now),
+        "reviewed_at": iso(now),
+        "review_note": "Suscripción premium activada automáticamente",
+    })
+    
+    return {
+        "ok": True,
+        "coins_balance": u.get("coins_balance", 0) - cost,
+        "premium_until": iso(new_until)
+    }
 
 
 @api.post("/auth/google/session")
@@ -555,8 +615,15 @@ async def list_payment_methods_public():
     return items
 
 
+async def get_optional_user(request: Request) -> Optional[dict]:
+    try:
+        return await get_current_user(request)
+    except Exception:
+        return None
+
+
 @api.get("/predictions")
-async def list_predictions(sport: Optional[Sport] = None, status: Optional[str] = None,
+async def list_predictions(request: Request, sport: Optional[Sport] = None, status: Optional[str] = None,
                            limit: int = Query(50, ge=1, le=200)):
     q: Dict[str, Any] = {}
     if sport:
@@ -564,14 +631,59 @@ async def list_predictions(sport: Optional[Sport] = None, status: Optional[str] 
     if status:
         q["status"] = status
     items = await db.predictions.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
+
+    user = await get_optional_user(request)
+    is_premium_user = False
+    if user:
+        if user.get("role") == "admin":
+            is_premium_user = True
+        else:
+            until = user.get("premium_until")
+            if until:
+                try:
+                    until_dt = datetime.fromisoformat(until)
+                    if until_dt.tzinfo is None:
+                        until_dt = until_dt.replace(tzinfo=timezone.utc)
+                    if until_dt > now_utc():
+                        is_premium_user = True
+                except Exception:
+                    pass
+
+    for item in items:
+        if item.get("is_premium") and not is_premium_user:
+            item["pick"] = "🔒 PREMIUM ONLY"
+            item["analysis"] = "Suscríbete al Paquete Premium para ver el análisis de este pronóstico."
+
     return items
 
 
 @api.get("/predictions/{pid}")
-async def get_prediction(pid: str):
+async def get_prediction(pid: str, request: Request):
     p = await db.predictions.find_one({"prediction_id": pid}, {"_id": 0})
     if not p:
         raise HTTPException(404, "Not found")
+
+    user = await get_optional_user(request)
+    is_premium_user = False
+    if user:
+        if user.get("role") == "admin":
+            is_premium_user = True
+        else:
+            until = user.get("premium_until")
+            if until:
+                try:
+                    until_dt = datetime.fromisoformat(until)
+                    if until_dt.tzinfo is None:
+                        until_dt = until_dt.replace(tzinfo=timezone.utc)
+                    if until_dt > now_utc():
+                        is_premium_user = True
+                except Exception:
+                    pass
+
+    if p.get("is_premium") and not is_premium_user:
+        p["pick"] = "🔒 PREMIUM ONLY"
+        p["analysis"] = "Suscríbete al Paquete Premium para ver el análisis de este pronóstico."
+
     return p
 
 

@@ -75,7 +75,7 @@ function PredictionsTab() {
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const empty = { sport: "football", title: "", event: "", pick: "", odds: 1.8, stake: 5, confidence: 3, analysis: "", image_url: "" };
+  const empty = { sport: "football", title: "", event: "", pick: "", odds: 1.8, stake: 5, confidence: 3, analysis: "", image_url: "", is_premium: false };
   const [form, setForm] = useState(empty);
 
   const load = useCallback(() => api.get("/predictions?limit=200").then(({ data }) => setItems(data || [])), []);
@@ -105,7 +105,14 @@ function PredictionsTab() {
             {items.map((p) => (
               <tr key={p.prediction_id} className="border-t border-zinc-900">
                 <td className="p-2 uppercase text-xs">{p.sport}</td>
-                <td className="p-2 font-bold max-w-xs truncate">{p.title}</td>
+                <td className="p-2 font-bold max-w-xs truncate">
+                  {p.title}
+                  {p.is_premium && (
+                    <span className="ml-1.5 px-1 py-0.5 rounded text-[8px] font-black bg-[#d4ff00] text-black">
+                      PREMIUM
+                    </span>
+                  )}
+                </td>
                 <td className="p-2 text-zinc-400 max-w-xs truncate">{p.pick}</td>
                 <td className="p-2 text-right font-mono">{Number(p.odds).toFixed(2)}</td>
                 <td className="p-2 text-center">
@@ -148,6 +155,20 @@ function PredictionsTab() {
           </div>
           <div><label className="label">Image URL</label>
             <input value={form.image_url || ""} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className="input" /></div>
+
+          <div className="flex items-center gap-2 py-2">
+            <input
+              type="checkbox"
+              id="is-premium-checkbox"
+              checked={form.is_premium || false}
+              onChange={(e) => setForm({ ...form, is_premium: e.target.checked })}
+              className="h-4 w-4 rounded border-zinc-800 bg-zinc-950 text-[#d4ff00] focus:ring-[#d4ff00] accent-[#d4ff00] cursor-pointer"
+            />
+            <label htmlFor="is-premium-checkbox" className="text-xs font-bold text-[#d4ff00] cursor-pointer select-none">
+              ★ Pronóstico Premium Only (Suscripción requerida)
+            </label>
+          </div>
+
           <div><label className="label">Analysis</label>
             <textarea rows={4} value={form.analysis} onChange={(e) => setForm({ ...form, analysis: e.target.value })} className="input" /></div>
           <button type="submit" className="btn-primary w-full justify-center" data-testid="pred-form-submit">{t("common.save")}</button>
