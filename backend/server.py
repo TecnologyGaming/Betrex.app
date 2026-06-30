@@ -713,9 +713,8 @@ async def my_recharges(user: dict = Depends(get_current_user)):
 
 
 # ----------------------- Stripe checkout -----------------------
-from emergentintegrations.payments.stripe.checkout import (
-    StripeCheckout, CheckoutSessionRequest,
-)
+import stripe
+import anyio
 
 
 async def _get_stripe_key() -> tuple:
@@ -731,6 +730,17 @@ async def _get_stripe_key() -> tuple:
     return "", True
 
 
+async def _get_stripe_webhook_secret() -> str:
+    """Return stripe webhook secret from payment methods config or fallback to env."""
+    pm = await db.payment_methods.find_one({"type": "stripe", "active": True})
+    if pm:
+        cfg = pm.get("config") or {}
+        secret = cfg.get("webhook_secret", "").strip()
+        if secret:
+            return secret
+    return os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+
 class StripeCheckoutIn(BaseModel):
     amount_usd: float = Field(ge=20, le=7000)
     origin_url: str
@@ -743,10 +753,8 @@ async def stripe_checkout_create(body: StripeCheckoutIn, request: Request,
     if not api_key:
         raise HTTPException(400, "Stripe not configured. Admin must enter secret_key in payment methods.")
 
+    stripe.api_key = api_key
     origin = body.origin_url.rstrip("/")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
 
     # Server-side amount control (never trust frontend)
     amount = float(body.amount_usd)
@@ -757,21 +765,34 @@ async def stripe_checkout_create(body: StripeCheckoutIn, request: Request,
     success_url = f"{origin}/wallet?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/wallet?canceled=1"
 
-    req = CheckoutSessionRequest(
-        amount=amount,
-        currency="usd",
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata={
-            "user_id": user["user_id"],
-            "user_email": user["email"],
-            "coins": str(coins),
-            "amount_usd": str(amount),
-            "source": "betrex_wallet",
-        },
-    )
+    metadata = {
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "coins": str(coins),
+        "amount_usd": str(amount),
+        "source": "betrex_wallet",
+    }
+
     try:
-        session = await checkout.create_checkout_session(req)
+        session = await anyio.to_thread.run_sync(
+            lambda: stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": f"Recarga de {coins} Monedas - BetRex.app",
+                        },
+                        "unit_amount": int(amount * 100),
+                    },
+                    "quantity": 1,
+                }],
+                mode="payment",
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata=metadata,
+            )
+        )
     except Exception as e:
         log.error(f"Stripe checkout creation failed: {e}")
         raise HTTPException(502, f"Stripe error: {str(e)[:200]}")
@@ -779,7 +800,7 @@ async def stripe_checkout_create(body: StripeCheckoutIn, request: Request,
     # Create pending transaction record
     await db.payment_transactions.insert_one({
         "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
-        "session_id": session.session_id,
+        "session_id": session.id,
         "user_id": user["user_id"],
         "user_email": user["email"],
         "amount_usd": amount,
@@ -787,11 +808,11 @@ async def stripe_checkout_create(body: StripeCheckoutIn, request: Request,
         "currency": "usd",
         "payment_status": "initiated",
         "status": "pending",
-        "metadata": req.metadata,
+        "metadata": metadata,
         "created_at": iso(now_utc()),
         "credited": False,
     })
-    return {"checkout_url": session.url, "session_id": session.session_id}
+    return {"checkout_url": session.url, "session_id": session.id}
 
 
 @api.get("/recharges/stripe/status/{session_id}")
@@ -816,9 +837,12 @@ async def stripe_checkout_status(session_id: str, user: dict = Depends(get_curre
     api_key, _ = await _get_stripe_key()
     if not api_key:
         raise HTTPException(400, "Stripe not configured")
-    checkout = StripeCheckout(api_key=api_key, webhook_url="unused")
+    
+    stripe.api_key = api_key
     try:
-        st = await checkout.get_checkout_status(session_id)
+        st = await anyio.to_thread.run_sync(
+            lambda: stripe.checkout.Session.retrieve(session_id)
+        )
     except Exception as e:
         raise HTTPException(502, f"Stripe error: {str(e)[:200]}")
 
@@ -887,15 +911,49 @@ async def stripe_webhook(request: Request):
     api_key, _ = await _get_stripe_key()
     if not api_key:
         return {"ok": False, "reason": "no_key"}
-    checkout = StripeCheckout(api_key=api_key, webhook_url="unused")
-    try:
-        evt = await checkout.handle_webhook(body, sig)
-    except Exception as e:
-        log.warning(f"webhook verify failed: {e}")
-        return {"ok": False}
 
-    if evt.event_type == "checkout.session.completed" and evt.payment_status == "paid":
-        sess_id = evt.session_id
+    stripe.api_key = api_key
+    webhook_secret = await _get_stripe_webhook_secret()
+
+    event_type = None
+    payment_status = None
+    sess_id = None
+
+    # 1) Intento de verificación de firma oficial de Stripe
+    if webhook_secret and sig:
+        try:
+            event = await anyio.to_thread.run_sync(
+                lambda: stripe.Webhook.construct_event(body, sig, webhook_secret)
+            )
+            event_type = event.get("type")
+            obj = event.get("data", {}).get("object", {})
+            sess_id = obj.get("id")
+            payment_status = obj.get("payment_status")
+        except Exception as e:
+            log.warning(f"Stripe Webhook signature verification failed: {e}. Trying failsafe retrieve.")
+
+    # 2) Failsafe Bypass: si falló la verificación o no está configurada la clave, decodificamos el JSON
+    # pero obligatoriamente consultamos por API directa a Stripe para validar la veracidad del cobro
+    if not sess_id:
+        try:
+            raw_event = json.loads(body.decode("utf-8"))
+            event_type = raw_event.get("type")
+            obj = raw_event.get("data", {}).get("object", {})
+            sess_id = obj.get("id")
+            if sess_id and sess_id.startswith("cs_"):
+                session_verified = await anyio.to_thread.run_sync(
+                    lambda: stripe.checkout.Session.retrieve(sess_id)
+                )
+                payment_status = session_verified.get("payment_status")
+                if payment_status == "paid":
+                    event_type = "checkout.session.completed"
+            else:
+                sess_id = None
+        except Exception as e:
+            log.error(f"Failsafe Stripe webhook parsing failed: {e}")
+            return {"ok": False}
+
+    if event_type == "checkout.session.completed" and payment_status == "paid" and sess_id:
         txn = await db.payment_transactions.find_one({"session_id": sess_id}, {"_id": 0})
         if txn and not txn.get("credited"):
             res = await db.payment_transactions.update_one(
