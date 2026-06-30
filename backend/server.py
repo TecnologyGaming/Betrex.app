@@ -391,8 +391,9 @@ async def google_session(request: Request, response: Response):
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id required")
     try:
+        auth_url = os.environ.get("EMERGENT_AUTH_URL", "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data")
         r = requests.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            auth_url,
             headers={"X-Session-ID": session_id},
             timeout=10,
         )
@@ -704,7 +705,14 @@ async def ranking(limit: int = 20):
     pipeline = [
         {"$match": {"role": {"$ne": "admin"}}},
         {"$lookup": {
-            "from": "bets", "localField": "user_id", "foreignField": "user_id", "as": "bets"
+            "from": "bets",
+            "localField": "user_id",
+            "foreignField": "user_id",
+            "as": "bets",
+            "pipeline": [
+                {"$project": {"status": 1, "payout_diff": 1}},
+                {"$limit": 1000}
+            ]
         }},
         {"$project": {
             "_id": 0, "user_id": 1, "name": 1, "picture": 1,
