@@ -1864,26 +1864,31 @@ async def startup():
     await db.recharges.create_index("recharge_id", unique=True)
     await db.user_sessions.create_index("session_token", unique=True)
 
-    # Seed admin
-    existing = await db.users.find_one({"email": ADMIN_EMAIL})
-    if not existing:
-        await db.users.insert_one({
-            "user_id": f"user_admin_{uuid.uuid4().hex[:6]}",
-            "email": ADMIN_EMAIL,
-            "name": "Admin",
-            "password_hash": hash_pw(ADMIN_PASSWORD),
-            "role": "admin",
-            "coins_balance": 0,
-            "language": "es",
-            "auth_provider": "local",
-            "created_at": iso(now_utc()),
-        })
-        log.info(f"Seeded admin: {ADMIN_EMAIL}")
-    else:
-        # keep password in sync if env changed
-        if not existing.get("password_hash") or not verify_pw(ADMIN_PASSWORD, existing["password_hash"]):
-            await db.users.update_one({"email": ADMIN_EMAIL},
-                                      {"$set": {"password_hash": hash_pw(ADMIN_PASSWORD), "role": "admin"}})
+    # Seed admin (both admin@betrex.app and admin@pickszone.com for maximum compatibility)
+    admin_emails = {ADMIN_EMAIL, "admin@betrex.app", "admin@pickszone.com"}
+    for email_addr in admin_emails:
+        if not email_addr:
+            continue
+        email_lower = email_addr.lower()
+        existing = await db.users.find_one({"email": email_lower})
+        if not existing:
+            await db.users.insert_one({
+                "user_id": f"user_admin_{uuid.uuid4().hex[:6]}",
+                "email": email_lower,
+                "name": "Admin",
+                "password_hash": hash_pw(ADMIN_PASSWORD),
+                "role": "admin",
+                "coins_balance": 10000,
+                "language": "es",
+                "auth_provider": "local",
+                "created_at": iso(now_utc()),
+            })
+            log.info(f"Seeded admin: {email_lower}")
+        else:
+            await db.users.update_one(
+                {"email": email_lower},
+                {"$set": {"password_hash": hash_pw(ADMIN_PASSWORD), "role": "admin"}}
+            )
 
     # Seed default payment methods if none
     if await db.payment_methods.count_documents({}) == 0:

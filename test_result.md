@@ -138,7 +138,7 @@ backend:
         comment: "✅ VERIFIED - Premium subscription endpoint is integrated and accessible through the Wallet UI. The subscribe button is visible and functional. Backend endpoint POST /api/users/subscribe-monthly is properly connected to the frontend."
 
 frontend:
-  - task: "Ajuste del logo en el Header (CSS max-width 180px, h-50px, object-fit contain)"
+  - task: "Ajuste del logo global en Header, Footer, Login y Registro (ancho max-width 300px, object-fit contain)"
     implemented: true
     working: true
     file: "frontend/src/components/Layout.js"
@@ -148,10 +148,25 @@ frontend:
     status_history:
       - working: true
         agent: "main"
-        comment: "Se corrigió el tamaño y proporción del logotipo en el header para evitar desproporción."
+        comment: "Se aumentó significativamente el tamaño del logotipo a un ancho máximo de 300px con object-fit: contain de forma global en Header, Footer, Login y Registro para mejorar el branding de BetRex."
       - working: true
         agent: "testing"
-        comment: "✅ VERIFIED - Header logo has correct CSS styles applied: max-width: 180px, height: 50px, object-fit: contain. Logo renders properly with correct proportions and styling."
+        comment: "✅ VERIFIED - All logo styling requirements confirmed via Playwright testing: (1) Header logo has max-width: 300px, object-fit: contain, height: 80px, (2) Footer logo has max-width: 300px, object-fit: contain, height: 80px, (3) Login page logo has max-width: 300px, object-fit: contain, height: 80px, (4) Register page logo has max-width: 300px, object-fit: contain, height: 80px. All logos render correctly with proper styling across all pages."
+
+  - task: "Remoción de referencias a Emergent y PostHog de index.html"
+    implemented: true
+    working: true
+    file: "frontend/public/index.html"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Se removió el script assets.emergent.sh, el badge flotante 'Made with Emergent' y el tracker de PostHog, dejando un producto 100% de marca propia y limpio."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED - Complete removal of Emergent and PostHog references confirmed: (1) No Emergent scripts (assets.emergent.sh) found in page, (2) No 'Made with Emergent' badge present, (3) No PostHog tracker scripts found, (4) index.html contains only standard HTML, fonts, and DOMException error handler, (5) App loads cleanly with no Emergent-related console errors. Console logs show only expected 401 errors from /api/auth/me (normal unauthenticated behavior) and network errors from CDN/fonts/images (unrelated to Emergent removal). Product is 100% clean and branded."
 
   - task: "Footer de Juego Responsable para Google Play"
     implemented: true
@@ -224,3 +239,7 @@ agent_communication:
     message: "Testing agent: Please verify complete removal of emergentintegrations package from backend and confirm Stripe integration is working with official stripe library."
   - agent: "testing"
     message: "✅ EMERGENTINTEGRATIONS REMOVAL VERIFIED - Complete verification confirms: (1) requirements.txt contains ONLY stripe==15.0.1, NO emergentintegrations package present, (2) Comprehensive grep search found ZERO emergentintegrations references in /app/backend/, (3) Backend imports successfully with official stripe library (import stripe at line 836 in server.py), (4) Backend service running stable (12+ min uptime, zero import errors), (5) All 3 Stripe endpoints accessible and properly routed (checkout, status, webhook), (6) Frontend proxy correctly configured to backend. The migration from emergentintegrations to official Stripe library is 100% complete and production-ready."
+  - agent: "main"
+    message: "Testing agent: Please verify the following changes using Playwright: 1. Verify the Layout Header and Footer logos are styled with max-width: 300px and object-fit: contain. 2. Verify the Login and Register page logos are styled with max-width: 300px and object-fit: contain. 3. Verify that the app loads cleanly after removing Emergent scripts/badges from index.html (no console errors). 4. Verify you can log in successfully with the admin email 'admin@betrex.app' and password 'Admin1234!'."
+  - agent: "testing"
+    message: "✅ ALL VERIFICATION TESTS PASSED - Comprehensive Playwright testing completed successfully: (1) Header logo verified with max-width: 300px, object-fit: contain, height: 80px, (2) Footer logo verified with max-width: 300px, object-fit: contain, height: 80px, (3) Login page logo verified with max-width: 300px, object-fit: contain, height: 80px, (4) Register page logo verified with max-width: 300px, object-fit: contain, height: 80px, (5) App loads cleanly with NO Emergent scripts (assets.emergent.sh), NO PostHog tracker, NO 'Made with Emergent' badge - console shows only expected 401 errors from /api/auth/me (normal unauthenticated behavior), (6) Admin login successful with admin@betrex.app / Admin1234! - user authenticated and redirected to /admin dashboard. All logo styling requirements met, Emergent removal complete, and authentication working correctly."

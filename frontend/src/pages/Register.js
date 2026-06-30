@@ -35,7 +35,7 @@ export default function Register() {
     <div className="min-h-[calc(100vh-200px)] grid place-items-center px-4 py-12">
       <div className="pz-card p-8 max-w-md w-full">
         <div className="flex items-center justify-center gap-2 mb-5">
-          <img src="/logo.png" alt="BetRex" className="h-16 w-auto" />
+          <img src="/logo.png" alt="BetRex" className="max-w-[300px] h-[90px] object-contain" />
         </div>
         <h1 className="font-display font-black text-3xl uppercase tracking-tighter text-center mb-6">{t("auth.registerTitle")}</h1>
         <form onSubmit={submit} className="space-y-4">
