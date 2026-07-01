@@ -1902,9 +1902,9 @@ async def startup():
              "instructions": "Pago seguro con tarjeta.",
              "account_info": "",
              "config": {
-                 "secret_key": "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",
-                 "publishable_key": "pk_live_51TcGB8PFFGiyhgF52iIePmhm0hwNqo6EQwRIKMNIfzHBXOkqS3Oi13XYNUhOIv2l2Vwm9TTIreNBWLCATJRVYcAJ00YVICz8Xe",
-                 "webhook_secret": "whsec_OUfUwiN2AwJFlQswOSzo3vQVbuNuVZne"
+                 "secret_key": "",
+                 "publishable_key": "",
+                 "webhook_secret": ""
              },
              "active": True, "order": 2, "icon_url": None, "created_at": iso(now_utc())},
             {"payment_method_id": f"pm_{uuid.uuid4().hex[:8]}", "name": "Binance Pay",
@@ -1919,9 +1919,9 @@ async def startup():
             {"$set": {
                 "active": True,
                 "config": {
-                    "secret_key": "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",
-                    "publishable_key": "pk_live_51TcGB8PFFGiyhgF52iIePmhm0hwNqo6EQwRIKMNIfzHBXOkqS3Oi13XYNUhOIv2l2Vwm9TTIreNBWLCATJRVYcAJ00YVICz8Xe",
-                    "webhook_secret": "whsec_OUfUwiN2AwJFlQswOSzo3vQVbuNuVZne"
+                    "secret_key": "",
+                    "publishable_key": "",
+                    "webhook_secret": ""
                 }
             }}
         )
