@@ -319,6 +319,35 @@ async def logout(response: Response, request: Request):
     return {"ok": True}
 
 
+class SEOConfigIn(BaseModel):
+    title: str
+    description: str
+    keywords: str
+
+
+@api.get("/seo")
+async def get_seo_config():
+    cfg = await db.settings.find_one({"type": "seo"}, {"_id": 0})
+    if not cfg:
+        return {
+            "title": "BetRex.app — Pronósticos Deportivos y Lotería",
+            "description": "BetRex — Pronósticos deportivos profesionales y mercados con coins virtuales.",
+            "keywords": "betrex, apuestas, pronósticos, futbol, béisbol, loteria, monedas virtuales"
+        }
+    return cfg.get("config") or {}
+
+
+@api.post("/admin/seo")
+async def save_seo_config(body: SEOConfigIn, _: dict = Depends(require_admin)):
+    doc = {
+        "type": "seo",
+        "config": body.model_dump(),
+        "updated_at": iso(now_utc())
+    }
+    await db.settings.update_one({"type": "seo"}, {"$set": doc}, upsert=True)
+    return {"ok": True}
+
+
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return serialize(user)
@@ -862,7 +891,7 @@ async def _get_stripe_webhook_secret() -> str:
 
 
 class StripeCheckoutIn(BaseModel):
-    amount_usd: float = Field(ge=20, le=7000)
+    amount_usd: float = Field(ge=10, le=7000)
     origin_url: str
 
 
@@ -878,8 +907,8 @@ async def stripe_checkout_create(body: StripeCheckoutIn, request: Request,
 
     # Server-side amount control (never trust frontend)
     amount = float(body.amount_usd)
-    if not (20 <= amount <= 7000):
-        raise HTTPException(400, "Amount must be between $20 and $7000")
+    if not (10 <= amount <= 7000):
+        raise HTTPException(400, "Amount must be between $10 and $7000")
     coins = int(amount * 100)
 
     success_url = f"{origin}/wallet?session_id={{CHECKOUT_SESSION_ID}}"

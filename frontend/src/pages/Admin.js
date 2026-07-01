@@ -6,7 +6,7 @@ import { useLang } from "../contexts/LanguageContext";
 import {
   ChartBar, ListChecks, Lightning, Image as ImageIcon, Money,
   CurrencyDollar, Users, Megaphone, Plus, PencilSimple, TrashSimple, Check, X,
-  CloudArrowDown, Gift,
+  CloudArrowDown, Gift, Globe,
 } from "@phosphor-icons/react";
 
 const SPORTS = ["football", "horse", "baseball", "lottery"];
@@ -986,6 +986,98 @@ function OddsTab() {
   );
 }
 
+function SEOTab() {
+  const { lang } = useLang();
+  const [form, setForm] = useState({ title: "", description: "", keywords: "" });
+  const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get("/seo").then(({ data }) => {
+      if (data) {
+        setForm({
+          title: data.title || "",
+          description: data.description || "",
+          keywords: data.keywords || "",
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true); setSuccess(false); setError("");
+    try {
+      await api.post("/admin/seo", form);
+      setSuccess(true);
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pz-card p-6 space-y-4">
+      <h2 className="font-display font-bold text-2xl uppercase flex items-center gap-2">
+        <Globe size={24} weight="duotone" color="#d4ff00" />
+        {lang === "es" ? "Configuración SEO del Portal" : "Portal SEO Settings"}
+      </h2>
+      <p className="text-sm text-zinc-400">
+        {lang === "es"
+          ? "Personaliza los metadatos de SEO globales de BetRex para optimizar el posicionamiento en buscadores (Google, Bing) y redes sociales."
+          : "Customize the global SEO metadata of BetRex to optimize search engine positioning (Google, Bing) and social media."}
+      </p>
+
+      <form onSubmit={save} className="space-y-4 max-w-xl">
+        <div>
+          <label className="label">{lang === "es" ? "Meta Título (Título de la pestaña)" : "Meta Title (Tab Title)"}</label>
+          <input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            className="input"
+            required
+            placeholder="BetRex.app — Pronósticos Deportivos y Lotería"
+          />
+        </div>
+        <div>
+          <label className="label">{lang === "es" ? "Meta Descripción" : "Meta Description"}</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            className="input"
+            required
+            rows={3}
+            placeholder="BetRex es una plataforma de simulación y pronósticos..."
+          />
+        </div>
+        <div>
+          <label className="label">{lang === "es" ? "Palabras clave (Keywords separadas por coma)" : "Keywords (Comma-separated)"}</label>
+          <input
+            value={form.keywords}
+            onChange={(e) => setForm({ ...form, keywords: e.target.value })}
+            className="input"
+            required
+            placeholder="betrex, apuestas, pronósticos, futbol, loteria"
+          />
+        </div>
+
+        <button type="submit" disabled={busy} className="btn-primary" style={{ backgroundColor: '#d4ff00', color: 'black' }}>
+          {busy ? "..." : (lang === "es" ? "Guardar Configuración SEO" : "Save SEO Settings")}
+        </button>
+
+        {success && (
+          <div className="text-emerald-400 text-sm font-semibold">
+            {lang === "es" ? "¡Metadatos de SEO guardados y aplicados con éxito!" : "SEO metadata saved and applied successfully!"}
+          </div>
+        )}
+        {error && <div className="text-sm text-[#ff3b30] font-semibold">{error}</div>}
+      </form>
+    </div>
+  );
+}
+
 // ---- Layout ----
 const TABS = [
   { key: "metrics", icon: ChartBar, label: "admin.metrics", Comp: MetricsTab },
@@ -998,6 +1090,7 @@ const TABS = [
   { key: "banners", icon: ImageIcon, label: "admin.banners", Comp: BannersTab },
   { key: "users", icon: Users, label: "admin.users", Comp: UsersTab },
   { key: "notifications", icon: Megaphone, label: "admin.notifications", Comp: NotificationsTab },
+  { key: "seo", icon: Globe, label: "admin.seo", Comp: SEOTab },
 ];
 
 export default function Admin() {

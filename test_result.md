@@ -140,6 +140,36 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED - Premium subscription endpoint is integrated and accessible through the Wallet UI. The subscribe button is visible and functional. Backend endpoint POST /api/users/subscribe-monthly is properly connected to the frontend."
 
+  - task: "Mínimo de Pago de Stripe a $10"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Se redujo el límite mínimo de pago de Stripe de $20 a $10 en backend (StripeCheckoutIn, stripe_checkout_create) y en frontend (Wallet.js)."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED - Wallet page amount input correctly implements $10 minimum: (1) Default value is $10 (line 16 in Wallet.js: useState(10)), (2) Minimum attribute is set to 10 (line 258: min={10}), (3) Maximum is 7000 (line 258: max={7000}), (4) HTML5 validation prevents values below $10 from being submitted, (5) Input field has data-testid='recharge-amount' for testing. All requirements met - users can now recharge with a minimum of $10 instead of $20."
+
+  - task: "Gestión de Metadatos SEO en Panel de Admin"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Se crearon los endpoints GET /api/seo y POST /api/admin/seo en el backend, la pestaña de SEO en Admin.js con formulario bilingüe en el frontend, y la inyección dinámica de título, descripción y keywords en App.js."
+      - working: true
+        agent: "testing"
+        comment: "✅ FULLY VERIFIED - Complete SEO management system is working perfectly: (1) Admin Dashboard: SEO tab (data-testid='admin-tab-seo') is visible in navigation with Globe icon and 'admin.seo' label, (2) SEO Form: Clicking tab loads 'Configuración SEO del Portal' form with 3 required inputs (Meta Title, Meta Description, Keywords) with bilingual labels and placeholders, (3) Form Submission: Successfully submits to POST /api/admin/seo endpoint and displays success message '¡Metadatos de SEO guardados y aplicados con éxito!', (4) Frontend Injection: App.js useEffect (lines 26-43) fetches GET /api/seo on mount and dynamically updates document.title, meta description, and meta keywords tags, (5) Live Verification: After submitting test SEO data, document.title immediately updated to 'BetRex Test SEO - Pronósticos Deportivos', meta description and keywords also updated correctly. All 4 requirements from review request are working: minimum $10 wallet input, /admin SEO tab access, SEO form with title/description/keywords submission, and dynamic SEO title injection on frontend."
+
 frontend:
   - task: "Ajuste del logo global en Header, Footer, Login y Registro (ancho max-width 300px, object-fit contain)"
     implemented: true
@@ -254,3 +284,7 @@ agent_communication:
     message: "Verify that the Stripe integration is fully operational and works successfully using the newly entered live Stripe credentials. Test that the checkout creation POST /api/recharges/stripe/checkout correctly initializes and returns a real Stripe Checkout Session URL using these live keys."
   - agent: "testing"
     message: "✅ STRIPE LIVE CREDENTIALS FULLY VERIFIED - Comprehensive testing confirms Stripe integration is 100% operational with live credentials: (1) Database verification: Live Stripe keys configured (sk_live_xxxx..., pk_live_xxxx..., webhook secret whsec_live_xxxx...), (2) POST /api/recharges/stripe/checkout: Successfully creates real Stripe Checkout Sessions in LIVE MODE (session IDs: cs_live_a1UXzvS8GQTM8DlRvj8baAhzEgs3MCdJeiVtgDuqTmjqCoqlN6Duqnu8na, cs_live_a1RevhmTxHYktJPkJ8DMbKCFTgNFmUtOB7Ei0E0N1Fwl6AbaCaJLgngOPi), returns valid Stripe Checkout URLs (https://checkout.stripe.com/c/pay/cs_live_...), (3) GET /api/recharges/stripe/status/{session_id}: Successfully retrieves session status from Stripe API (200 OK, payment_status: unpaid, credited: false), (4) POST /api/webhook/stripe: Processes webhook events correctly (200 OK), (5) Amount validation: Correctly enforces $20-$7000 range (422 errors for $10 and $8000, 200 OK for $20, $100, $7000), (6) Backend logs: Show successful Stripe API interactions with 200 response codes, no errors. All 4 comprehensive tests passed (Checkout Creation, Status Retrieval, Webhook Endpoint, Amount Validation). Integration is production-ready and fully operational with live Stripe credentials."
+  - agent: "user"
+    message: "Please test the following new changes using Playwright: 1. Verify the Wallet page amount input allows a minimum of $10 (previously $20) and defaults to $10. 2. Verify you can access the /admin dashboard and see the new 'SEO' tab in the navigation. 3. Verify clicking the 'SEO' tab loads the SEO config form with title, description, and keywords inputs, and that you can submit it successfully. 4. Verify the frontend SPA injects the SEO title dynamically into document.title on load."
+  - agent: "testing"
+    message: "✅ ALL NEW CHANGES VERIFIED - Comprehensive Playwright testing completed successfully for all 4 requirements: (1) Wallet Page: Amount input defaults to $10 and has min=$10 attribute, HTML5 validation prevents values below $10, max is $7000 - change from $20 to $10 minimum working correctly, (2) Admin SEO Tab: SEO tab (data-testid='admin-tab-seo') is visible in /admin navigation with Globe icon and 'admin.seo' label, (3) SEO Form: Clicking SEO tab loads 'Configuración SEO del Portal' form with 3 inputs (Meta Title, Meta Description, Keywords) with bilingual placeholders, form successfully submits to POST /api/admin/seo and displays success message '¡Metadatos de SEO guardados y aplicados con éxito!', (4) Dynamic SEO Injection: App.js useEffect fetches GET /api/seo on mount and updates document.title, meta description, and meta keywords - verified by submitting test SEO data and confirming document.title immediately changed to 'BetRex Test SEO - Pronósticos Deportivos'. All features working as expected and production-ready."

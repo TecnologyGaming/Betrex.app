@@ -13,7 +13,7 @@ export default function Wallet() {
   const [methods, setMethods] = useState([]);
   const [recharges, setRecharges] = useState([]);
   const [pmId, setPmId] = useState("");
-  const [amount, setAmount] = useState(20);
+  const [amount, setAmount] = useState(10);
   const [note, setNote] = useState("");
   const [proofUrl, setProofUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -255,7 +255,7 @@ export default function Wallet() {
           <div>
             <label className="label">{t("common.amount")} (USD)</label>
             <input
-              type="number" min={20} max={7000} step={10}
+              type="number" min={10} max={7000} step={10}
               value={amount} onChange={(e) => setAmount(e.target.value)}
               className="input" required data-testid="recharge-amount"
             />

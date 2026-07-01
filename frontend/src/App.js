@@ -1,5 +1,6 @@
 import "@/index.css";
 import "@/App.css";
+import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -17,9 +18,30 @@ import AuthCallback from "@/pages/AuthCallback";
 import Admin from "@/pages/Admin";
 import BetOfTheDayModal from "@/components/BetOfTheDayModal";
 import WelcomeBonusModal from "@/components/WelcomeBonusModal";
+import api from "@/lib/api";
 
 function AppRouter() {
   const location = useLocation();
+
+  useEffect(() => {
+    api.get("/seo").then(({ data }) => {
+      if (data) {
+        if (data.title) document.title = data.title;
+        const descMeta = document.querySelector('meta[name="description"]');
+        if (descMeta && data.description) descMeta.setAttribute("content", data.description);
+        const keyMeta = document.querySelector('meta[name="keywords"]');
+        if (keyMeta && data.keywords) {
+          keyMeta.setAttribute("content", data.keywords);
+        } else if (data.keywords) {
+          const newMeta = document.createElement('meta');
+          newMeta.name = 'keywords';
+          newMeta.content = data.keywords;
+          document.head.appendChild(newMeta);
+        }
+      }
+    }).catch(() => {});
+  }, [location.pathname]);
+
   // If returning from Emergent Google auth, the URL has #session_id=...
   if (location.hash?.includes("session_id=")) {
     return <AuthCallback />;
