@@ -319,6 +319,53 @@ async def logout(response: Response, request: Request):
     return {"ok": True}
 
 
+@api.get("/horoscope/{sign}")
+async def get_daily_horoscope(sign: str):
+    sign_lower = sign.lower()
+    valid_signs = {
+        "aries", "taurus", "gemini", "cancer", "leo", "virgo",
+        "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"
+    }
+    if sign_lower not in valid_signs:
+        raise HTTPException(400, "Invalid sign")
+
+    today_str = now_utc().strftime("%Y-%m-%d")
+
+    # 1) Buscar en caché de MongoDB
+    cached = await db.horoscopes.find_one({"sign": sign_lower, "date": today_str}, {"_id": 0})
+    if cached:
+        return cached
+
+    # 2) Si no está en caché, consultar Ohmanda API
+    url = f"https://ohmanda.com/api/horoscope/{sign_lower}"
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            doc = {
+                "sign": sign_lower,
+                "date": today_str,
+                "horoscope": data.get("horoscope", ""),
+                "created_at": iso(now_utc())
+            }
+            # Guardar en caché
+            await db.horoscopes.update_one(
+                {"sign": sign_lower, "date": today_str},
+                {"$set": doc},
+                upsert=True
+            )
+            return doc
+    except Exception as e:
+        log.warning(f"Ohmanda API failed for {sign_lower}: {e}")
+
+    # Fallback si falla la API
+    return {
+        "sign": sign_lower,
+        "date": today_str,
+        "horoscope": f"Focus on your goals today, {sign_lower.capitalize()}. The universe is aligning to bring clarity and positive energy to your financial and sports predictions. Trust your intuition!"
+    }
+
+
 class SEOConfigIn(BaseModel):
     title: str
     description: str
