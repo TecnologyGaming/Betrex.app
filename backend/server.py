@@ -1899,16 +1899,32 @@ async def startup():
              "icon_url": None, "created_at": iso(now_utc())},
             {"payment_method_id": f"pm_{uuid.uuid4().hex[:8]}", "name": "Stripe",
              "type": "stripe",
-             "instructions": "Pago seguro con tarjeta. Configura tus claves en admin.",
+             "instructions": "Pago seguro con tarjeta.",
              "account_info": "",
-             "config": {"secret_key": "", "publishable_key": "", "webhook_secret": ""},
-             "active": False, "order": 2, "icon_url": None, "created_at": iso(now_utc())},
+             "config": {
+                 "secret_key": "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",
+                 "publishable_key": "pk_live_51TcGB8PFFGiyhgF52iIePmhm0hwNqo6EQwRIKMNIfzHBXOkqS3Oi13XYNUhOIv2l2Vwm9TTIreNBWLCATJRVYcAJ00YVICz8Xe",
+                 "webhook_secret": "whsec_OUfUwiN2AwJFlQswOSzo3vQVbuNuVZne"
+             },
+             "active": True, "order": 2, "icon_url": None, "created_at": iso(now_utc())},
             {"payment_method_id": f"pm_{uuid.uuid4().hex[:8]}", "name": "Binance Pay",
              "type": "binance", "instructions": "Envía USDT a la dirección indicada.",
              "account_info": "TXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "config": {},
              "active": True, "order": 3, "icon_url": None, "created_at": iso(now_utc())},
         ]
         await db.payment_methods.insert_many(defaults)
+    else:
+        await db.payment_methods.update_one(
+            {"type": "stripe"},
+            {"$set": {
+                "active": True,
+                "config": {
+                    "secret_key": "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",
+                    "publishable_key": "pk_live_51TcGB8PFFGiyhgF52iIePmhm0hwNqo6EQwRIKMNIfzHBXOkqS3Oi13XYNUhOIv2l2Vwm9TTIreNBWLCATJRVYcAJ00YVICz8Xe",
+                    "webhook_secret": "whsec_OUfUwiN2AwJFlQswOSzo3vQVbuNuVZne"
+                }
+            }}
+        )
 
     # Seed sample banner
     if await db.banners.count_documents({}) == 0:
