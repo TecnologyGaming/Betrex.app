@@ -170,6 +170,22 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str = Field(min_length=1, max_length=80)
+    referral_code: Optional[str] = None
+
+
+class LotteryBuyIn(BaseModel):
+    lottery_type: Literal["powerball", "megamillions"]
+    numbers: List[int]
+    special_ball: int
+
+
+class LotterySettleIn(BaseModel):
+    status: Literal["won", "lost"]
+    prize_coins: int = 0
+
+
+class LotteryUploadIn(BaseModel):
+    ticket_image_url: str
 
 
 class LoginIn(BaseModel):
@@ -269,6 +285,59 @@ class LangIn(BaseModel):
     language: Literal["es", "en"]
 
 
+async def update_user_bet_win_streak(user_id: str, won: bool):
+    """Actualiza la racha de victorias de apuestas consecutivas del usuario y otorga bonos."""
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        return
+
+    if won:
+        new_streak = int(user.get("bet_win_streak") or 0) + 1
+        await db.users.update_one({"user_id": user_id}, {"$set": {"bet_win_streak": new_streak}})
+        
+        bonus = 0
+        hito_name = ""
+        if new_streak == 3:
+            bonus = 100
+            hito_name = "Racha de Bronce (3 victorias)"
+        elif new_streak == 5:
+            bonus = 300
+            hito_name = "Racha de Plata (5 victorias)"
+        elif new_streak == 10:
+            bonus = 1000
+            hito_name = "Racha de Oro (10 victorias)"
+            
+        if bonus > 0:
+            await db.users.update_one({"user_id": user_id}, {"$inc": {"coins_balance": bonus}})
+            await db.recharges.insert_one({
+                "recharge_id": f"rch_streak_{uuid.uuid4().hex[:8]}",
+                "user_id": user_id,
+                "user_email": user["email"],
+                "user_name": user.get("name", "Usuario"),
+                "payment_method_id": "win_streak",
+                "payment_method_name": "Bono de Racha",
+                "amount_usd": 0.0,
+                "coins": bonus,
+                "proof_note": f"Bono por {hito_name} consecutivas ganadas",
+                "proof_url": None,
+                "status": "approved",
+                "created_at": iso(now_utc()),
+                "reviewed_at": iso(now_utc()),
+                "review_note": "Acreditado automáticamente por racha de victorias",
+            })
+            if user.get("push_sub"):
+                try:
+                    send_push_to(user["push_sub"], {
+                        "title": "BetRex.app",
+                        "body": f"¡Bono de racha conseguido! +{bonus} monedas",
+                        "url": "/profile"
+                    })
+                except Exception:
+                    pass
+    else:
+        await db.users.update_one({"user_id": user_id}, {"$set": {"bet_win_streak": 0}})
+
+
 # ----------------------- Auth Routes -----------------------
 @api.post("/auth/register")
 async def register(body: RegisterIn, response: Response):
@@ -278,6 +347,41 @@ async def register(body: RegisterIn, response: Response):
         raise HTTPException(status_code=400, detail="Email already registered")
     settings = await get_bonus_settings()
     welcome = int(settings.get("welcome_bonus_amount", DEFAULT_WELCOME_BONUS)) if settings.get("welcome_bonus_enabled", True) else 0
+    
+    # Lógica de referidos
+    referred_by_id = None
+    referral_bonus = 0
+    if body.referral_code:
+        ref_code_clean = body.referral_code.strip().upper()
+        inviter = await db.users.find_one({"referral_code": ref_code_clean})
+        if inviter:
+            referred_by_id = inviter["user_id"]
+            referral_bonus = 100 # Bono para el nuevo referido de 100 monedas extra
+            
+            # Otorgar +500 monedas virtuales al referidor
+            await db.users.update_one(
+                {"user_id": inviter["user_id"]},
+                {"$inc": {"coins_balance": 500}}
+            )
+            # Registrar transacción de premio para el referidor
+            await db.recharges.insert_one({
+                "recharge_id": f"rch_ref_{uuid.uuid4().hex[:8]}",
+                "user_id": inviter["user_id"],
+                "user_email": inviter["email"],
+                "user_name": inviter.get("name", "Usuario"),
+                "payment_method_id": "referral",
+                "payment_method_name": "Premio Referido",
+                "amount_usd": 0.0,
+                "coins": 500,
+                "proof_note": f"Premio por referir a {email}",
+                "proof_url": None,
+                "status": "approved",
+                "created_at": iso(now_utc()),
+                "reviewed_at": iso(now_utc()),
+                "review_note": "Acreditado automáticamente por registro de referido",
+            })
+            
+    my_ref_code = f"REF-{uuid.uuid4().hex[:6].upper()}"
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     user = {
         "user_id": user_id,
@@ -285,7 +389,7 @@ async def register(body: RegisterIn, response: Response):
         "name": body.name,
         "password_hash": hash_pw(body.password),
         "role": "user",
-        "coins_balance": welcome,
+        "coins_balance": welcome + referral_bonus,
         "language": "es",
         "picture": None,
         "auth_provider": "local",
@@ -293,6 +397,9 @@ async def register(body: RegisterIn, response: Response):
         "streak_current": 0,
         "streak_best": 0,
         "last_streak_claim_date": None,
+        "bet_win_streak": 0, # <--- Racha de victorias de apuestas consecutivas
+        "referral_code": my_ref_code, # <--- Código de referido único
+        "referred_by": referred_by_id, # <--- Quién lo refirió
         "created_at": iso(now_utc()),
     }
     await db.users.insert_one(user.copy())
@@ -1297,11 +1404,13 @@ async def admin_settle_market(mid: str, body: MarketSettleIn, _: dict = Depends(
                                      {"$set": {"status": "won",
                                                "payout_diff": payout - b["coins"],
                                                "settled_at": iso(now_utc())}})
+            await update_user_bet_win_streak(b["user_id"], True)
         else:
             await db.bets.update_one({"bet_id": b["bet_id"]},
                                      {"$set": {"status": "lost",
                                                "payout_diff": -b["coins"],
                                                "settled_at": iso(now_utc())}})
+            await update_user_bet_win_streak(b["user_id"], False)
     await db.markets.update_one({"market_id": mid},
                                 {"$set": {"status": "settled", "winning_label": body.winning_label,
                                           "settled_at": iso(now_utc())}})
@@ -1311,6 +1420,140 @@ async def admin_settle_market(mid: str, body: MarketSettleIn, _: dict = Depends(
 @api.delete("/admin/markets/{mid}")
 async def admin_del_market(mid: str, _: dict = Depends(require_admin)):
     await db.markets.delete_one({"market_id": mid})
+    return {"ok": True}
+
+
+# ----------------------- Lottery & Tickets -----------------------
+@api.post("/lottery/buy")
+async def buy_lottery_ticket(body: LotteryBuyIn, user: dict = Depends(get_current_user)):
+    cost = 100 # Costo de 100 monedas por boleto
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if u.get("coins_balance", 0) < cost:
+        raise HTTPException(400, "Saldo de monedas insuficiente. Necesitas al menos 100 monedas.")
+
+    ticket_id = f"tkt_{uuid.uuid4().hex[:10]}"
+    ticket = {
+        "ticket_id": ticket_id,
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "user_name": u.get("name", "Usuario"),
+        "lottery_type": body.lottery_type,
+        "numbers": body.numbers,
+        "special_ball": body.special_ball,
+        "cost": cost,
+        "status": "pending", # pending, won, lost
+        "prize_coins": 0,
+        "ticket_image_url": None, # Foto escaneada subida por el admin
+        "created_at": iso(now_utc()),
+    }
+    await db.lottery_tickets.insert_one(ticket.copy())
+    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"coins_balance": -cost}})
+    
+    # Crear registro en recharges como débito
+    await db.recharges.insert_one({
+        "recharge_id": f"rch_tkt_{uuid.uuid4().hex[:8]}",
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "user_name": u.get("name", "Usuario"),
+        "payment_method_id": "lottery",
+        "payment_method_name": "Compra de Boleto",
+        "amount_usd": 0.0,
+        "coins": -cost,
+        "proof_note": f"Boleto {body.lottery_type.capitalize()} ({', '.join(map(str, body.numbers))}) [+ {body.special_ball}]",
+        "proof_url": None,
+        "status": "approved",
+        "created_at": iso(now_utc()),
+        "reviewed_at": iso(now_utc()),
+        "review_note": "Acreditado por compra de boleto",
+    })
+    
+    return serialize(ticket)
+
+
+@api.get("/lottery/my-tickets")
+async def get_my_lottery_tickets(user: dict = Depends(get_current_user)):
+    return await db.lottery_tickets.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+# ----------------------- Admin: Loterías y Tickets -----------------------
+@api.get("/admin/lottery/tickets")
+async def admin_list_tickets(_: dict = Depends(require_admin)):
+    return await db.lottery_tickets.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+
+@api.patch("/admin/lottery/tickets/{tid}/upload-image")
+async def admin_upload_ticket_image(tid: str, body: LotteryUploadIn, _: dict = Depends(require_admin)):
+    res = await db.lottery_tickets.update_one(
+        {"ticket_id": tid},
+        {"$set": {"ticket_image_url": body.ticket_image_url}}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Ticket not found")
+    
+    # Notificar al usuario
+    tkt = await db.lottery_tickets.find_one({"ticket_id": tid}, {"_id": 0})
+    if tkt:
+        u = await db.users.find_one({"user_id": tkt["user_id"]}, {"_id": 0})
+        if u and u.get("push_sub"):
+            try:
+                send_push_to(u["push_sub"], {
+                    "title": "BetRex.app",
+                    "body": "Tu boleto de lotería ya tiene la foto escaneada adjunta por el admin.",
+                    "url": "/profile"
+                })
+            except Exception:
+                pass
+                
+    return {"ok": True}
+
+
+@api.patch("/admin/lottery/tickets/{tid}/settle")
+async def admin_settle_ticket(tid: str, body: LotterySettleIn, _: dict = Depends(require_admin)):
+    tkt = await db.lottery_tickets.find_one({"ticket_id": tid}, {"_id": 0})
+    if not tkt:
+        raise HTTPException(404, "Ticket not found")
+    if tkt.get("status") != "pending":
+        raise HTTPException(400, "Ticket already settled")
+        
+    await db.lottery_tickets.update_one(
+        {"ticket_id": tid},
+        {"$set": {"status": body.status, "prize_coins": body.prize_coins, "settled_at": iso(now_utc())}}
+    )
+    
+    if body.status == "won" and body.prize_coins > 0:
+        await db.users.update_one(
+            {"user_id": tkt["user_id"]},
+            {"$inc": {"coins_balance": body.prize_coins}}
+        )
+        await db.recharges.insert_one({
+            "recharge_id": f"rch_tkt_win_{uuid.uuid4().hex[:8]}",
+            "user_id": tkt["user_id"],
+            "user_email": tkt["user_email"],
+            "user_name": tkt.get("user_name", "Usuario"),
+            "payment_method_id": "lottery_prize",
+            "payment_method_name": "Premio Lotería",
+            "amount_usd": 0.0,
+            "coins": body.prize_coins,
+            "proof_note": f"Premio ganado en Sorteo {tkt['lottery_type'].capitalize()}",
+            "proof_url": None,
+            "status": "approved",
+            "created_at": iso(now_utc()),
+            "reviewed_at": iso(now_utc()),
+            "review_note": "Acreditado por sorteo de lotería",
+        })
+        
+        # Notificar al usuario
+        u = await db.users.find_one({"user_id": tkt["user_id"]}, {"_id": 0})
+        if u and u.get("push_sub"):
+            try:
+                send_push_to(u["push_sub"], {
+                    "title": "BetRex.app",
+                    "body": f"¡Felicidades! Ganaste {body.prize_coins} monedas en el sorteo.",
+                    "url": "/wallet"
+                })
+            except Exception:
+                pass
+                
     return {"ok": True}
 
 
@@ -1848,12 +2091,14 @@ async def _settle_market_internal(market: dict, winning_label: str):
                                                "payout_diff": payout - b["coins"],
                                                "settled_at": iso(now_utc())}})
             user_payouts[b["user_id"]] = {"coins": payout, "won": True, "title": market["title"]}
+            await update_user_bet_win_streak(b["user_id"], True)
         else:
             await db.bets.update_one({"bet_id": b["bet_id"]},
                                      {"$set": {"status": "lost",
                                                "payout_diff": -b["coins"],
                                                "settled_at": iso(now_utc())}})
             user_payouts.setdefault(b["user_id"], {"coins": 0, "won": False, "title": market["title"]})
+            await update_user_bet_win_streak(b["user_id"], False)
 
     await db.markets.update_one(
         {"market_id": market["market_id"]},

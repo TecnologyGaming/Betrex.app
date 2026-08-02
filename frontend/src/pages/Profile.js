@@ -3,7 +3,7 @@ import api from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useLang } from "../contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
-import { BellRinging, BellSlash, UserCircle } from "@phosphor-icons/react";
+import { BellRinging, BellSlash, UserCircle, Users, Trophy, Lightning, Copy } from "@phosphor-icons/react";
 import StreakWidget from "../components/StreakWidget";
 
 function urlBase64ToUint8Array(base64String) {
@@ -112,8 +112,72 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="mb-6">
-        <StreakWidget />
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        {/* Streak / Racha Widget */}
+        <div className="space-y-4">
+          <StreakWidget />
+          
+          {/* Racha de Apuestas Consecutivas */}
+          <div className="pz-card p-5 bg-gradient-to-r from-zinc-950 to-zinc-900 border border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Trophy size={36} color="#d4ff00" weight="duotone" />
+              <div>
+                <h3 className="font-display font-bold text-lg uppercase tracking-tight text-white">
+                  {lang === "es" ? "Racha de Victorias de Apuestas" : "Consecutive Bet Win Streak"}
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  {lang === "es" 
+                    ? "¡Gana apuestas seguidas para conseguir bonos de monedas!" 
+                    : "Win bets consecutively to claim virtual coin bonuses!"}
+                </p>
+                <div className="flex gap-4 mt-2 text-[10px] font-mono text-zinc-500 font-bold uppercase">
+                  <span>Bronce: 3 seguidos (+100)</span>
+                  <span>Plata: 5 seguidos (+300)</span>
+                  <span>Oro: 10 seguidos (+1000)</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-center bg-[#d4ff00]/10 border border-[#d4ff00]/30 rounded-lg px-4 py-2">
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block leading-none">Racha</span>
+              <span className="font-mono font-black text-2xl text-[#d4ff00]" data-testid="bet-win-streak-value">
+                {user.bet_win_streak ?? 0}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Sistema de Referidos */}
+        <div className="pz-card p-6 border border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 flex flex-col justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Users size={24} color="#d4ff00" weight="duotone" />
+              <h3 className="font-display font-bold text-xl uppercase tracking-tight text-white">
+                {lang === "es" ? "Sistema de Referidos" : "Referral System"}
+              </h3>
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              {lang === "es"
+                ? "Invita a tus amigos a unirse a BetRex.app. Por cada amigo que se registre usando tu código único, tú recibirás de forma instantánea 500 monedas de regalo."
+                : "Invite your friends to join BetRex.app. For every friend who registers using your unique code, you will instantly receive 500 coins as a gift."}
+            </p>
+          </div>
+          <div className="mt-4 p-3 rounded bg-black/50 border border-zinc-800 flex items-center justify-between gap-4">
+            <div className="font-mono text-sm text-[#d4ff00] font-black tracking-widest uppercase">
+              {user.referral_code ?? `REF-${user.user_id?.slice(-6).toUpperCase()}`}
+            </div>
+            <button
+              onClick={() => {
+                const code = user.referral_code ?? `REF-${user.user_id?.slice(-6).toUpperCase()}`;
+                navigator.clipboard.writeText(code);
+                alert(lang === "es" ? "Código copiado al portapapeles" : "Referral code copied to clipboard!");
+              }}
+              className="btn-primary !py-1 !px-2.5 text-[10px] font-black uppercase flex items-center gap-1"
+              style={{ backgroundColor: '#d4ff00', color: 'black' }}
+            >
+              <Copy size={12} weight="bold" /> {lang === "es" ? "Copiar" : "Copy"}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="pz-card p-6">

@@ -5,7 +5,7 @@ import { useLang } from "../contexts/LanguageContext";
 import api from "../lib/api";
 import {
   House, Trophy, Coins, ChartBar, UserCircle, ListChecks,
-  SignOut, SignIn, Globe, BellRinging, Lightning, Wallet, Star
+  SignOut, SignIn, Globe, BellRinging, Lightning, Wallet, Star, Ticket
 } from "@phosphor-icons/react";
 import Banner from "./Banner";
 
@@ -31,6 +31,7 @@ export default function Layout({ children }) {
     { to: "/markets", label: t("nav.markets"), icon: Lightning, testId: "nav-markets" },
     { to: "/ranking", label: t("nav.ranking"), icon: Trophy, testId: "nav-ranking" },
     { to: "/horoscope", label: lang === "es" ? "Horóscopo" : "Horoscope", icon: Star, testId: "nav-horoscope" },
+    { to: "/lottery", label: lang === "es" ? "Lotería" : "Lottery", icon: Ticket, testId: "nav-lottery" },
   ];
 
   const isAdminRoute = loc.pathname.startsWith("/admin");

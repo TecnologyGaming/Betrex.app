@@ -8,7 +8,7 @@ export default function Register() {
   const { register } = useAuth();
   const { t, lang } = useLang();
   const nav = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", referral_code: "" });
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -50,6 +50,11 @@ export default function Register() {
           <div>
             <label className="label">{t("common.password")}</label>
             <input type="password" required minLength={6} className="input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="register-password" />
+          </div>
+
+          <div>
+            <label className="label">{lang === "es" ? "Código de Referido (Opcional)" : "Referral Code (Optional)"}</label>
+            <input className="input" placeholder="REF-XXXXXX" value={form.referral_code} onChange={(e) => setForm({ ...form, referral_code: e.target.value })} data-testid="register-referral" />
           </div>
 
           <div className="flex items-start gap-2.5 my-4">

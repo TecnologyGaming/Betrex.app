@@ -17,6 +17,7 @@ import Register from "@/pages/Register";
 import AuthCallback from "@/pages/AuthCallback";
 import Admin from "@/pages/Admin";
 import Horoscope from "@/pages/Horoscope";
+import Lottery from "@/pages/Lottery";
 import BetOfTheDayModal from "@/components/BetOfTheDayModal";
 import WelcomeBonusModal from "@/components/WelcomeBonusModal";
 import api from "@/lib/api";
@@ -62,6 +63,7 @@ function AppRouter() {
         <Route path="/wallet" element={<Wallet />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/horoscope" element={<Horoscope />} />
+        <Route path="/lottery" element={<Lottery />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/auth/callback" element={<AuthCallback />} />

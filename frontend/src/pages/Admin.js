@@ -6,7 +6,7 @@ import { useLang } from "../contexts/LanguageContext";
 import {
   ChartBar, ListChecks, Lightning, Image as ImageIcon, Money,
   CurrencyDollar, Users, Megaphone, Plus, PencilSimple, TrashSimple, Check, X,
-  CloudArrowDown, Gift, Globe,
+  CloudArrowDown, Gift, Globe, Ticket,
 } from "@phosphor-icons/react";
 
 const SPORTS = ["football", "horse", "baseball", "lottery"];
@@ -1078,6 +1078,178 @@ function SEOTab() {
   );
 }
 
+function LotteryTab() {
+  const { lang } = useLang();
+  const [tickets, setTickets] = useState([]);
+  const [editingTid, setEditingTid] = useState(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [settlingTid, setSettlingTid] = useState(null);
+  const [prizeCoins, setPrizeCoins] = useState(1000);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    api.get("/admin/lottery/tickets").then(({ data }) => setTickets(data || [])).catch(() => {});
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const saveImage = async (tid) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.patch(`/admin/lottery/tickets/${tid}/upload-image`, { ticket_image_url: imageUrl });
+      alert(lang === "es" ? "¡Imagen de ticket guardada con éxito!" : "Ticket image saved successfully!");
+      setEditingTid(null); setImageUrl(""); load();
+    } catch (e) {
+      alert("Error: " + (e?.response?.data?.detail || "Error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const settle = async (tid, status) => {
+    if (busy) return;
+    if (!window.confirm(lang === "es" ? `¿Confirmas marcar este ticket como ${status.toUpperCase()}?` : `Confirm setting this ticket to ${status.toUpperCase()}?`)) return;
+    setBusy(true);
+    try {
+      await api.patch(`/admin/lottery/tickets/${tid}/settle`, { status, prize_coins: status === "won" ? Number(prizeCoins) : 0 });
+      alert(lang === "es" ? "¡Ticket liquidado con éxito!" : "Ticket settled successfully!");
+      setSettlingTid(null); load();
+    } catch (e) {
+      alert("Error: " + (e?.response?.data?.detail || "Error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pz-card p-6 space-y-4">
+      <h2 className="font-display font-bold text-2xl uppercase flex items-center gap-2">
+        <Ticket size={24} weight="duotone" color="#d4ff00" />
+        {lang === "es" ? "Administración de Loterías" : "Lottery Ticket Administration"}
+      </h2>
+      <p className="text-sm text-zinc-400">
+        {lang === "es"
+          ? "Gestiona los boletos de Powerball y Mega Millions comprados por los usuarios. Sube fotos escaneadas de los tickets reales y liquida como ganadores/perdedores."
+          : "Manage Powerball and Mega Millions tickets purchased by users. Upload photos of real physical tickets and settle them as winners/losers."}
+      </p>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-zinc-400 text-xs uppercase">
+            <tr className="border-b border-zinc-800">
+              <th className="text-left p-3">Usuario</th>
+              <th className="text-left p-3">Sorteo</th>
+              <th className="text-left p-3">Números</th>
+              <th className="text-center p-3">Escaner / Foto</th>
+              <th className="text-center p-3">Estado</th>
+              <th className="text-right p-3">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tickets.length === 0 ? (
+              <tr><td colSpan={6} className="text-center text-zinc-500 py-10">No hay boletos de lotería jugados.</td></tr>
+            ) : (
+              tickets.map((t) => (
+                <tr key={t.ticket_id} className="border-b border-zinc-900/50">
+                  <td className="p-3">
+                    <div className="font-bold text-white">{t.user_name}</div>
+                    <div className="text-[10px] text-zinc-500 font-mono">{t.user_email}</div>
+                  </td>
+                  <td className="p-3 uppercase text-xs font-bold text-zinc-300">{t.lottery_type}</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1 font-mono text-xs">
+                      {t.numbers.map((n) => (
+                        <span key={n} className="w-5 h-5 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-zinc-300">{n}</span>
+                      ))}
+                      <span className="w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center font-bold">{t.special_ball}</span>
+                    </div>
+                  </td>
+                  <td className="p-3 text-center">
+                    {t.ticket_image_url ? (
+                      <a href={t.ticket_image_url} target="_blank" rel="noreferrer" className="text-xs text-[#d4ff00] hover:underline font-mono truncate max-w-[150px] inline-block">
+                        Ver foto ✓
+                      </a>
+                    ) : (
+                      <span className="text-xs text-zinc-600 italic">{lang === "es" ? "No subida" : "Not uploaded"}</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                      t.status === "won" ? "bg-emerald-500 text-black" : t.status === "lost" ? "bg-zinc-800 text-zinc-500" : "bg-[#ffcc00] text-black"
+                    }`}>
+                      {t.status}
+                    </span>
+                    {t.status === "won" && (
+                      <div className="text-[10px] text-emerald-400 font-mono font-bold">+{t.prize_coins} 🪙</div>
+                    )}
+                  </td>
+                  <td className="p-3 text-right space-y-1">
+                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => { setEditingTid(t.ticket_id); setImageUrl(t.ticket_image_url || ""); }}
+                        className="btn-outline !py-1 !px-2.5 text-[10px] font-black uppercase"
+                      >
+                        Subir Escáner
+                      </button>
+                      {t.status === "pending" && (
+                        <button
+                          onClick={() => setSettlingTid(t.ticket_id)}
+                          className="btn-primary !py-1 !px-2.5 text-[10px] font-black uppercase"
+                          style={{ backgroundColor: '#d4ff00', color: 'black' }}
+                        >
+                          Liquidar
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Subida de Imagen Form inline */}
+                    {editingTid === t.ticket_id && (
+                      <div className="mt-2 p-2.5 bg-black/40 border border-zinc-800 rounded-md text-left space-y-2 max-w-xs ml-auto">
+                        <label className="text-[10px] text-zinc-400 uppercase font-bold block">URL del Ticket Escaneado</label>
+                        <input
+                          value={imageUrl}
+                          onChange={(e) => setImageUrl(e.target.value)}
+                          placeholder="https://..."
+                          className="input !py-1 !px-2 text-xs"
+                        />
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button onClick={() => setEditingTid(null)} className="btn-outline !py-1 !px-2 text-[10px]">Cancelar</button>
+                          <button onClick={() => saveImage(t.ticket_id)} disabled={busy} className="btn-primary !py-1 !px-2 text-[10px]" style={{ backgroundColor: '#d4ff00', color: 'black' }}>Guardar</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Liquidación Form inline */}
+                    {settlingTid === t.ticket_id && (
+                      <div className="mt-2 p-2.5 bg-black/40 border border-zinc-800 rounded-md text-left space-y-2 max-w-xs ml-auto">
+                        <label className="text-[10px] text-zinc-400 uppercase font-bold block">Premio en Monedas (Won)</label>
+                        <input
+                          type="number"
+                          value={prizeCoins}
+                          onChange={(e) => setPrizeCoins(e.target.value)}
+                          className="input !py-1 !px-2 text-xs"
+                        />
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button onClick={() => setSettlingTid(null)} className="btn-outline !py-1 !px-2 text-[10px]">Cancelar</button>
+                          <button onClick={() => settle(t.ticket_id, "lost")} disabled={busy} className="btn-secondary !py-1 !px-2 text-[10px] bg-red-600 text-white">Lost ❌</button>
+                          <button onClick={() => settle(t.ticket_id, "won")} disabled={busy} className="btn-primary !py-1 !px-2 text-[10px]" style={{ backgroundColor: '#00e676', color: 'black' }}>Won 🏆</button>
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ---- Layout ----
 const TABS = [
   { key: "metrics", icon: ChartBar, label: "admin.metrics", Comp: MetricsTab },
@@ -1091,6 +1263,7 @@ const TABS = [
   { key: "users", icon: Users, label: "admin.users", Comp: UsersTab },
   { key: "notifications", icon: Megaphone, label: "admin.notifications", Comp: NotificationsTab },
   { key: "seo", icon: Globe, label: "admin.seo", Comp: SEOTab },
+  { key: "lottery", icon: Ticket, label: "admin.lottery" || "Lottery", Comp: LotteryTab },
 ];
 
 export default function Admin() {
