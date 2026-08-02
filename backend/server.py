@@ -2257,6 +2257,80 @@ async def startup():
              "created_at": iso(now_utc())},
         ])
 
+    # Seed pronósticos y mercados de caballos para carreras americanas (Gulfstream Park, Saratoga)
+    # Solo los sembramos si la base de datos de caballos está vacía
+    if await db.predictions.count_documents({"sport": "horse"}) == 0:
+        await db.predictions.insert_many([
+            {
+                "prediction_id": f"pred_horse_{uuid.uuid4().hex[:8]}",
+                "sport": "horse",
+                "title": "Saratoga Race 7 - Victoria de Flightline",
+                "event": "Carrera de Caballos Saratoga Park (EE.UU.)",
+                "pick": "Flightline (Ganador)",
+                "odds": 2.25,
+                "stake": 8,
+                "confidence": 4,
+                "analysis": "Saratoga Turf Course. Flightline presenta un desempeño de velocidad impecable en pista de césped húmeda. Con un récord de 4 victorias en sus últimas 5 carreras americanas, cuenta con el jinete estrella John Velazquez, lo que le da un porcentaje de victoria muy superior.",
+                "starts_at": iso(now_utc() + timedelta(hours=12)),
+                "image_url": "https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=800",
+                "status": "pending",
+                "is_premium": False,
+                "created_at": iso(now_utc())
+            },
+            {
+                "prediction_id": f"pred_horse_{uuid.uuid4().hex[:8]}",
+                "sport": "horse",
+                "title": "Gulfstream Park Race 9 - Cody's Wish a Ganador",
+                "event": "Gulfstream Park (Florida, EE.UU.)",
+                "pick": "Cody's Wish (Ganador)",
+                "odds": 1.85,
+                "stake": 9,
+                "confidence": 5,
+                "analysis": "La pista de arena en Gulfstream Park favorece el estilo de zancada larga de Cody's Wish. Las simulaciones de carrera indican que tomará la punta en la curva final. Un pick de altísima confianza para tipsters expertos.",
+                "starts_at": iso(now_utc() + timedelta(hours=14)),
+                "image_url": "https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=800",
+                "status": "pending",
+                "is_premium": True, # Premium
+                "created_at": iso(now_utc())
+            }
+        ])
+        log.info("Seeded American horse predictions")
+
+    if await db.markets.count_documents({"sport": "horse"}) == 0:
+        await db.markets.insert_many([
+            {
+                "market_id": f"mkt_horse_{uuid.uuid4().hex[:8]}",
+                "sport": "horse",
+                "title": "Ganador de la Carrera - Gulfstream Park (Race 8)",
+                "event": "Gulfstream Park (Florida, EE.UU.) - 1600m",
+                "options": [
+                    {"label": "Flightline", "odds": 2.20},
+                    {"label": "Cody's Wish", "odds": 2.80},
+                    {"label": "Epicenter", "odds": 4.50},
+                    {"label": "Rich Strike", "odds": 6.00}
+                ],
+                "closes_at": iso(now_utc() + timedelta(hours=8)),
+                "status": "open",
+                "auto_imported": False,
+                "created_at": iso(now_utc())
+            },
+            {
+                "market_id": f"mkt_horse_{uuid.uuid4().hex[:8]}",
+                "sport": "horse",
+                "title": "Podio de la Carrera (Top 3) - Saratoga Park",
+                "event": "Saratoga Course Race 5",
+                "options": [
+                    {"label": "Cody's Wish en Top 3", "odds": 1.45},
+                    {"label": "Cody's Wish fuera del Top 3", "odds": 2.50}
+                ],
+                "closes_at": iso(now_utc() + timedelta(hours=10)),
+                "status": "open",
+                "auto_imported": False,
+                "created_at": iso(now_utc())
+            }
+        ])
+        log.info("Seeded American horse markets")
+
     log.info("BetRex backend ready")
 
     # Start odds auto-sync loop
