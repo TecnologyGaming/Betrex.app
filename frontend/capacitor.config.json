@@ -1,0 +1,6 @@
+{
+  "appId": "app.betrex.android",
+  "appName": "BetRex",
+  "webDir": "build",
+  "bundledWebRuntime": false
+}

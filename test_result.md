@@ -309,17 +309,27 @@ frontend:
         agent: "testing"
         comment: "✅ VERIFIED - Wallet page includes comprehensive Monthly Premium Predictions Subscription panel with gradient styling. Panel displays '★ PREMIUM ONLY' badge, bilingual heading 'Suscripción Mensual de Pronósticos Premium / Monthly Premium Predictions Subscription', detailed description, cost information '500 monedas / 30 días', and functional Subscribe/Renew button 'Suscribirse (500 🪙)'. Panel shows active status and expiration date when premium is active. UI is polished and professional."
 
+  - task: "PWA Configuration - Service Worker and Capacitor Setup"
+    implemented: true
+    working: true
+    file: "frontend/src/index.js, frontend/public/sw.js, frontend/capacitor.config.json"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ FULLY VERIFIED - PWA and mobile app configuration is 100% complete and operational: (1) App Loading: App loads cleanly without compilation errors, React root element mounts successfully, no error overlays detected, page title displays correctly as 'BetRex Test SEO - Pronósticos Deportivos', navigation elements render properly, (2) Service Worker Registration: Service Worker is registered correctly in index.js (lines 13-24), registers /sw.js on window load with proper error handling, Service Worker API is supported and active (scope: https://odds-staging-1.preview.emergentagent.com/), sw.js file exists at /app/frontend/public/sw.js with push notification handlers (install, activate, push, notificationclick events), (3) Capacitor Configuration: capacitor.config.json exists at /app/frontend/capacitor.config.json, properly formatted JSON with all required fields (appId: app.betrex.android, appName: BetRex, webDir: build, bundledWebRuntime: false), (4) Frontend Logs: Webpack compiled successfully with no critical errors, only deprecation warnings (non-blocking), frontend service running stable for 23+ minutes. All three review requirements verified and working correctly - app is production-ready for PWA and mobile deployment."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 5
+  test_sequence: 6
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Sistema de Referidos (+500 monedas)"
-    - "Racha de Victorias de Apuestas (Bet Win Streaks)"
-    - "Módulo de Lotería y Compra de Boletos Powerball / MegaMillions"
+    - "PWA Configuration - Service Worker and Capacitor Setup"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -361,3 +371,7 @@ agent_communication:
     message: "Please test the new feature implementations using Playwright: 1. Verify the 'Lotería' link appears in the main layout navigation Header with a Ticket icon (data-testid='nav-lottery') and clicking it navigates to /lottery. 2. Verify the /lottery page displays option to choose between Powerball and Mega Millions, lets you pick numbers and a special ball, has a functioning Quick Pick button, and allows buying a ticket. 3. Verify the Register page form includes the optional referral code input field. 4. Verify the Profile page displays the user's referral code, copy button, and the consecutive bet win streak widget with the trophy icon. 5. Verify the /admin dashboard includes the new 'Lotería' tab in navigation and loads the lottery ticket management table."
   - agent: "testing"
     message: "✅ ALL NEW LOTTERY FEATURES FULLY VERIFIED - Comprehensive Playwright testing completed successfully for all 5 requirements: (1) Navigation Link: 'Lotería' link present in header with Ticket icon (data-testid='nav-lottery'), clicking navigates to /lottery page (requires authentication - redirects to /login if not authenticated, which is correct behavior), (2) Lottery Page: After authentication, page displays 'SORTEOS DE POWERBALL & MEGAMILLIONS' heading, Powerball and Mega Millions selection buttons work correctly, number selection interface present with scrollable grid for main numbers (1-69/1-70) and special ball (1-26/1-25), Quick Pick button found with text 'Selección Rápida / Quick Pick', Buy Ticket button displays 'COMPRAR BOLETO (100 🪙)' with correct 100 coin cost, 'My Purchased Tickets' section displays user's ticket history, (3) Register Page: Referral code input field present with data-testid='register-referral', placeholder 'REF-XXXXXX', and label 'CÓDIGO DE REFERIDO (OPCIONAL)' confirming optional status, (4) Profile Page: Referral System section displays user's unique referral code (REF-28D6ED) with Copy button, Bet Win Streak widget displays with Trophy icon (duotone, #d4ff00), heading 'Racha de Victorias de Apuestas / Consecutive Bet Win Streak', streak value with data-testid='bet-win-streak-value' showing current count (0), and milestone information (Bronze: 3 consecutive +100, Silver: 5 consecutive +300, Gold: 10 consecutive +1000), (5) Admin Dashboard: Lottery tab present in navigation with data-testid='admin-tab-lottery' and Ticket icon, clicking tab loads 'ADMINISTRACIÓN DE LOTERÍAS' page with complete ticket management table (6 columns: Usuario, Sorteo, Números, Escaner/Foto, Estado, Acciones), table displays 'No hay boletos de lotería jugados' when empty. Backend APIs verified: GET /api/lottery/my-tickets and GET /api/admin/lottery/tickets both working correctly. All features are production-ready and fully functional."
+  - agent: "user"
+    message: "Verify that the app loads cleanly with no compilation errors. Confirm that the Service Worker is registered correctly in index.js. Confirm that the Capacitor configuration file 'capacitor.config.json' is present and properly formatted."
+  - agent: "testing"
+    message: "✅ PWA CONFIGURATION FULLY VERIFIED - All three requirements tested and confirmed working: (1) App Loading: App loads cleanly without compilation errors, page title 'BetRex Test SEO - Pronósticos Deportivos' displays correctly, React root element (#root) mounts successfully, no compilation warnings or error overlays visible, navigation elements render properly, webpack compiled successfully with only non-critical deprecation warnings, frontend service running stable (23+ minutes uptime), (2) Service Worker Registration: Service Worker is registered correctly in index.js (lines 13-24), code registers /sw.js on window load with proper error handling (console.log on success, console.error on failure), Service Worker API is supported in browser, Service Worker is ACTIVE with scope https://odds-staging-1.preview.emergentagent.com/, sw.js file exists at /app/frontend/public/sw.js with complete push notification implementation (install, activate, push, notificationclick event handlers), (3) Capacitor Configuration: capacitor.config.json exists at /app/frontend/capacitor.config.json (not in root /app), file is properly formatted JSON with all required fields: appId (app.betrex.android), appName (BetRex), webDir (build), bundledWebRuntime (false). All PWA and mobile app configuration requirements are met and production-ready."
