@@ -39,6 +39,23 @@ export default function Slots() {
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
 
+  // Inicialización de Efectos de Sonido
+  const [spinAudio] = useState(() => {
+    const a = new Audio("https://assets.mixkit.co/active_storage/sfx/2003/2003-84.wav");
+    a.volume = 0.5;
+    return a;
+  });
+  const [winAudio] = useState(() => {
+    const a = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-84.wav");
+    a.volume = 0.6;
+    return a;
+  });
+  const [loseAudio] = useState(() => {
+    const a = new Audio("https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav");
+    a.volume = 0.5;
+    return a;
+  });
+
   useEffect(() => {
     if (!user) { nav("/login"); return; }
     // Inicializar reels con los símbolos correspondientes
@@ -58,7 +75,16 @@ export default function Slots() {
     setResult(null);
     setErr("");
 
-    // Animación de rotación de rodillos local (girar rápido de forma determinista para el efecto visual)
+    // Iniciar sonido de giro
+    try {
+      spinAudio.currentTime = 0;
+      spinAudio.loop = true;
+      spinAudio.play().catch((ex) => console.log(ex));
+    } catch (e) {
+      console.log(e);
+    }
+
+    // Animación de rotación de rodillos local
     let spinCount = 0;
     const interval = setInterval(() => {
       setReels([
@@ -75,6 +101,28 @@ export default function Slots() {
       // Esperar que la animación corra por lo menos 1.5 segundos (15 ticks) para dar suspenso
       setTimeout(async () => {
         clearInterval(interval);
+        
+        // Detener sonido de giro
+        try {
+          spinAudio.pause();
+          spinAudio.currentTime = 0;
+        } catch (e) {
+          console.log(e);
+        }
+
+        // Reproducir sonido de desenlace
+        try {
+          if (data.is_winner) {
+            winAudio.currentTime = 0;
+            winAudio.play().catch((ex) => console.log(ex));
+          } else {
+            loseAudio.currentTime = 0;
+            loseAudio.play().catch((ex) => console.log(ex));
+          }
+        } catch (e) {
+          console.log(e);
+        }
+
         setReels(data.symbols);
         setResult(data);
         setSpinning(false);
@@ -83,6 +131,12 @@ export default function Slots() {
 
     } catch (e) {
       clearInterval(interval);
+      try {
+        spinAudio.pause();
+        spinAudio.currentTime = 0;
+      } catch (ex) {
+        console.log(ex);
+      }
       setSpinning(false);
       setErr(e?.response?.data?.detail || "Error");
     }
