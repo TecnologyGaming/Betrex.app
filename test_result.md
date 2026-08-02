@@ -248,6 +248,9 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ VERIFIED - All logo styling requirements confirmed via Playwright testing: (1) Header logo has max-width: 300px, object-fit: contain, height: 80px, (2) Footer logo has max-width: 300px, object-fit: contain, height: 80px, (3) Login page logo has max-width: 300px, object-fit: contain, height: 80px, (4) Register page logo has max-width: 300px, object-fit: contain, height: 80px. All logos render correctly with proper styling across all pages."
+      - working: true
+        agent: "testing"
+        comment: "✅ UPDATED LOGO DIMENSIONS VERIFIED - Layout Header and Footer logos are now correctly styled with max-width: 450px, height: 140px, object-fit: contain as requested. Comprehensive Playwright testing confirms: (1) Header logo: max-width: 450px, height: 140px, object-fit: contain ✅, (2) Footer logo: max-width: 450px, height: 140px, object-fit: contain ✅, (3) App loads cleanly with no compilation errors ✅, (4) No critical console errors detected (only expected 401 errors from /api/auth/me when not authenticated) ✅. Note: Login and Register form logos (inside the forms, not in Layout) still use max-width: 300px, height: 90px, but these were not mentioned in the review request. All requirements from the review request are met and working correctly."
 
   - task: "Remoción de referencias a Emergent y PostHog de index.html"
     implemented: true
@@ -329,7 +332,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "PWA Configuration - Service Worker and Capacitor Setup"
+    - "Ajuste del logo global en Header, Footer, Login y Registro (ancho max-width 300px, object-fit contain)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -375,3 +378,7 @@ agent_communication:
     message: "Verify that the app loads cleanly with no compilation errors. Confirm that the Service Worker is registered correctly in index.js. Confirm that the Capacitor configuration file 'capacitor.config.json' is present and properly formatted."
   - agent: "testing"
     message: "✅ PWA CONFIGURATION FULLY VERIFIED - All three requirements tested and confirmed working: (1) App Loading: App loads cleanly without compilation errors, page title 'BetRex Test SEO - Pronósticos Deportivos' displays correctly, React root element (#root) mounts successfully, no compilation warnings or error overlays visible, navigation elements render properly, webpack compiled successfully with only non-critical deprecation warnings, frontend service running stable (23+ minutes uptime), (2) Service Worker Registration: Service Worker is registered correctly in index.js (lines 13-24), code registers /sw.js on window load with proper error handling (console.log on success, console.error on failure), Service Worker API is supported in browser, Service Worker is ACTIVE with scope https://odds-staging-1.preview.emergentagent.com/, sw.js file exists at /app/frontend/public/sw.js with complete push notification implementation (install, activate, push, notificationclick event handlers), (3) Capacitor Configuration: capacitor.config.json exists at /app/frontend/capacitor.config.json (not in root /app), file is properly formatted JSON with all required fields: appId (app.betrex.android), appName (BetRex), webDir (build), bundledWebRuntime (false). All PWA and mobile app configuration requirements are met and production-ready."
+  - agent: "user"
+    message: "Verify that the Layout Header and Footer logos are styled with max-width: 450px, height: 140px, and object-fit: contain. Ensure the web app loads cleanly with no compilation or console errors."
+  - agent: "testing"
+    message: "✅ LOGO DIMENSIONS AND APP LOADING FULLY VERIFIED - Comprehensive Playwright testing confirms all requirements are met: (1) Header Logo: max-width: 450px, height: 140px, object-fit: contain ✅ (className: max-w-[450px] h-[140px] object-contain), (2) Footer Logo: max-width: 450px, height: 140px, object-fit: contain ✅ (className: max-w-[450px] h-[140px] object-contain), (3) App Loading: App loads cleanly with no compilation errors ✅, React root element mounts successfully, no error overlays detected, (4) Console Errors: No critical console errors detected ✅ (only expected 401 errors from /api/auth/me when not authenticated, which is normal behavior), (5) Service Worker: Registered successfully. Additional findings: Login and Register form logos (inside the forms, not in Layout) still use max-width: 300px, height: 90px, but these were not mentioned in the review request. All requirements from the review request are met and production-ready."
