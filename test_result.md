@@ -155,6 +155,21 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED - Wallet page amount input correctly implements $10 minimum: (1) Default value is $10 (line 16 in Wallet.js: useState(10)), (2) Minimum attribute is set to 10 (line 258: min={10}), (3) Maximum is 7000 (line 258: max={7000}), (4) HTML5 validation prevents values below $10 from being submitted, (5) Input field has data-testid='recharge-amount' for testing. All requirements met - users can now recharge with a minimum of $10 instead of $20."
 
+  - task: "Sincronización de yarn.lock con package.json"
+    implemented: true
+    working: true
+    file: "frontend/yarn.lock"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Se ejecutó yarn install en el subdirectorio frontend para regenerar y sincronizar yarn.lock con las nuevas dependencias de Ionic Capacitor."
+      - working: true
+        agent: "testing"
+        comment: "✅ YARN.LOCK SYNC FULLY VERIFIED - React frontend loads cleanly with NO compilation errors after yarn.lock synchronization. Comprehensive testing confirms: (1) Frontend Service: RUNNING with 1:15:14 uptime, stable and healthy, (2) Webpack Compilation: SUCCESS - multiple successful compilations logged, 'Compiled successfully!' messages in output, (3) Compilation Logs: Only non-critical deprecation warnings present (Browserslist data age, webpack dev server middleware deprecation, webpack compilation assets deprecation) - NO blocking errors, (4) Page Loading: App loads successfully at https://odds-staging-1.preview.emergentagent.com with networkidle state, (5) React Mounting: Root element (#root) mounts successfully with 127,117 chars of rendered content, (6) Error Overlay: NO React error overlay detected - confirms no compilation errors in UI, (7) Page Title: Displays correctly as 'BetRex Test SEO - Pronósticos Deportivos', (8) Navigation: 2 navigation/header elements render properly (header with logo, nav menu with Inicio/Pronósticos/Mercados/Ranking/Horóscopo/Lotería links), (9) Service Worker: Registers successfully with scope https://odds-staging-1.preview.emergentagent.com/, (10) Console Errors: Only 2 expected 401 errors from /api/auth/me endpoint (normal unauthenticated behavior, consistent with all previous test reports), NO compilation-related console errors, (11) Visual Verification: Screenshot confirms clean UI with BetRex logo, navigation menu, language selector, login/register buttons, and 'Apuesta del Día' modal displaying correctly. The yarn.lock sync with Ionic Capacitor dependencies is 100% successful and production-ready with zero compilation issues."
+
   - task: "Módulo de Horóscopo Diario AstroRex con Caché"
     implemented: true
     working: true
@@ -390,3 +405,7 @@ agent_communication:
     message: "Continue with the task"
   - agent: "testing"
     message: "✅ RE-VERIFICATION COMPLETE - Icon assets and HTML layout re-tested and confirmed 100% working: (1) All 6 icon files present with correct sizes (apple-touch-icon.png: 14K, favicon-32.png: 1.2K, favicon.ico: 1.8K, icon-192.png: 16K, icon-512.png: 77K, logo.png: 854K), (2) HTML head properly references all icons (favicon.ico, apple-touch-icon.png, manifest.json, og:image, twitter:image), (3) App loads cleanly without compilation errors, React root mounts successfully, no error overlays, (4) Page title correct: 'BetRex Test SEO - Pronósticos Deportivos', (5) manifest.json accessible (200 OK) with proper icon references, (6) 2 logo images visible on page (header and footer), (7) HTML layout structure correct (root element, navigation elements, body overflow), (8) All icon network requests successful (logo.png: 200, manifest.json: 200) - NO 404 errors, (9) Service Worker registered and active, (10) Console shows only expected 401 errors from /api/auth/me (normal unauthenticated behavior) - NO icon-related errors. Screenshot confirms clean visual layout with BetRex logo in header, working navigation, and no layout issues. All icon assets properly integrated and production-ready."
+  - agent: "user"
+    message: "Verify that the React frontend loads cleanly with no console or compilation errors after syncing the yarn.lock file."
+  - agent: "testing"
+    message: "✅ YARN.LOCK SYNC VERIFICATION COMPLETE - React frontend loads cleanly with NO compilation errors after yarn.lock synchronization. All verification checks passed: (1) Frontend service RUNNING (1:15:14 uptime), (2) Webpack compiled successfully with no blocking errors, (3) Only non-critical deprecation warnings in logs, (4) Page loads successfully with React root mounting (127,117 chars rendered), (5) NO React error overlay detected, (6) Page title displays correctly, (7) Navigation elements render properly, (8) Service Worker registers successfully, (9) Only expected 401 errors from /api/auth/me (normal unauthenticated behavior), (10) Visual verification confirms clean UI with all elements displaying correctly. The yarn.lock sync is 100% successful and production-ready."
