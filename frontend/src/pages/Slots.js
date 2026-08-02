@@ -39,21 +39,21 @@ export default function Slots() {
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
 
-  // Inicialización de Efectos de Sonido con precarga nativa y formatos .mp3 ultralivianos
+  // Inicialización de Efectos de Sonido locales con precarga y formato .mp3 de casino real
   const [spinAudio] = useState(() => {
-    const a = new Audio("https://www.soundjay.com/buttons/sounds/button-10.mp3");
+    const a = new Audio("/sounds/spin.mp3");
     a.preload = "auto";
     a.volume = 0.5;
     return a;
   });
   const [winAudio] = useState(() => {
-    const a = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+    const a = new Audio("/sounds/win.mp3");
     a.preload = "auto";
     a.volume = 0.6;
     return a;
   });
   const [loseAudio] = useState(() => {
-    const a = new Audio("https://www.soundjay.com/buttons/sounds/button-4.mp3");
+    const a = new Audio("/sounds/lose.mp3");
     a.preload = "auto";
     a.volume = 0.5;
     return a;
