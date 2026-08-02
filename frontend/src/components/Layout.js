@@ -32,6 +32,7 @@ export default function Layout({ children }) {
     { to: "/ranking", label: t("nav.ranking"), icon: Trophy, testId: "nav-ranking" },
     { to: "/horoscope", label: lang === "es" ? "Horóscopo" : "Horoscope", icon: Star, testId: "nav-horoscope" },
     { to: "/lottery", label: lang === "es" ? "Lotería" : "Lottery", icon: Ticket, testId: "nav-lottery" },
+    { to: "/slots", label: "Slots", icon: Coins, testId: "nav-slots" },
   ];
 
   const isAdminRoute = loc.pathname.startsWith("/admin");

@@ -657,6 +657,7 @@ function NotificationsTab() {
 function BonusTab() {
   const { lang } = useLang();
   const [s, setS] = useState(null);
+  const [winningChance, setWinningChance] = useState(35); // Probabilidad de tragamonedas
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [ladderInput, setLadderInput] = useState("");
@@ -671,6 +672,9 @@ function BonusTab() {
           .join(", ")
       );
     });
+    api.get("/admin/slots/config").then(({ data }) => {
+      setWinningChance(data.winning_chance || 35);
+    }).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -693,13 +697,17 @@ function BonusTab() {
         streak_ladder: ladder,
       });
       setS(data);
+
+      // Guardar probabilidad de slots
+      await api.post("/admin/slots/config", { winning_chance: Number(winningChance) });
+
       setMsg({ ok: true, text: lang === "es" ? "Guardado" : "Saved" });
     } catch (e) { setMsg({ ok: false, text: e?.response?.data?.detail || "Error" }); }
     finally { setBusy(false); }
   };
 
   return (
-    <Section title={lang === "es" ? "Bonos y recompensas" : "Bonuses & rewards"} icon={Gift}>
+    <Section title={lang === "es" ? "Economía, Bonos y Tragamonedas" : "Economy, Bonuses & Slots"} icon={Gift}>
       <div className="space-y-6">
         {/* Welcome bonus */}
         <div className="border border-zinc-800 rounded-lg p-5 space-y-3">
@@ -775,8 +783,47 @@ function BonusTab() {
           </div>
         </div>
 
+        {/* Slots Config */}
+        <div className="border border-zinc-800 rounded-lg p-5 space-y-3">
+          <div>
+            <h3 className="font-display font-bold text-xl uppercase">{lang === "es" ? "Probabilidad Tragamonedas (Slots)" : "Slots Winning Probability"}</h3>
+            <p className="text-xs text-zinc-400">
+              {lang === "es" 
+                ? "Define la tasa de probabilidad en porcentaje de ganar (RTP aproximado) para las 2 máquinas tragamonedas." 
+                : "Define the winning probability percentage (approximate RTP) for the 2 slot machines."}
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4 items-center">
+            <div>
+              <label className="label">{lang === "es" ? "Porcentaje de Probabilidad de Ganar" : "Winning Probability %"}</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range" min={5} max={95} step={5}
+                  value={winningChance}
+                  onChange={(e) => setWinningChance(e.target.value)}
+                  className="w-full h-2 rounded bg-zinc-800 accent-[#d4ff00] cursor-pointer"
+                />
+                <span className="font-mono font-bold text-[#d4ff00] text-lg shrink-0 min-w-[45px] text-right">
+                  {winningChance}%
+                </span>
+              </div>
+            </div>
+            <div className="text-xs text-zinc-500 font-mono bg-black/40 border border-zinc-900 rounded-md p-3">
+              {lang === "es" ? (
+                <>
+                  💡 <strong className="text-zinc-300">Tip de ganancia:</strong> Un 35% es la media ideal de casino. Si quieres que ganen más, mueva el slider hacia arriba; si quieres retener más monedas, bájalo.
+                </>
+              ) : (
+                <>
+                  💡 <strong className="text-zinc-300">Winning tip:</strong> 35% is the ideal average casino rate. Move the slider up to let users win more, or down to retain more coins.
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
-          <button onClick={save} disabled={busy} className="btn-primary" data-testid="bonus-save">
+          <button onClick={save} disabled={busy} className="btn-primary" data-testid="bonus-save" style={{ backgroundColor: '#d4ff00', color: 'black' }}>
             {busy ? "..." : (lang === "es" ? "Guardar cambios" : "Save changes")}
           </button>
           {msg && (

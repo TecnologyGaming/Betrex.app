@@ -188,6 +188,14 @@ class LotteryUploadIn(BaseModel):
     ticket_image_url: str
 
 
+class SlotsPlayIn(BaseModel):
+    slot_type: Literal["astrorex", "sports"]
+
+
+class SlotsConfigIn(BaseModel):
+    winning_chance: int = Field(ge=5, le=95)
+
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
@@ -1473,6 +1481,119 @@ async def buy_lottery_ticket(body: LotteryBuyIn, user: dict = Depends(get_curren
 @api.get("/lottery/my-tickets")
 async def get_my_lottery_tickets(user: dict = Depends(get_current_user)):
     return await db.lottery_tickets.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+# ----------------------- Slots & Casino -----------------------
+import random
+
+SLOTS_SYMBOLS = {
+    "astrorex": ["🦖", "⚡", "☄️", "🪐", "⭐"],
+    "sports": ["7️⃣", "🏆", "⚽", "⚾", "🏇"],
+}
+
+SLOTS_MULTIPLIERS = {
+    "🦖": 5, "7️⃣": 5, # Premio gordo
+    "⚡": 3, "🏆": 3, # Premio premium
+    "☄️": 2, "⚽": 2, # Premio medio
+    "🪐": 2, "⚾": 2,
+    "⭐": 2, "🏇": 2,
+}
+
+
+@api.get("/slots/config")
+async def get_slots_config():
+    cfg = await db.settings.find_one({"type": "slots_config"}, {"_id": 0})
+    if not cfg:
+        return {"winning_chance": 35, "cost": 10}
+    return {"winning_chance": cfg.get("winning_chance", 35), "cost": 10}
+
+
+@api.post("/slots/play")
+async def play_slots(body: SlotsPlayIn, user: dict = Depends(get_current_user)):
+    cost = 10
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not u:
+        raise HTTPException(404, "User not found")
+    if u.get("coins_balance", 0) < cost:
+        raise HTTPException(400, "Saldo de monedas insuficiente. Necesitas al menos 10 monedas.")
+
+    # Obtener probabilidad desde base de datos
+    cfg = await db.settings.find_one({"type": "slots_config"}, {"_id": 0})
+    winning_chance = cfg.get("winning_chance", 35) if cfg else 35
+
+    symbols = SLOTS_SYMBOLS[body.slot_type]
+    rand_val = random.randint(1, 100)
+    
+    is_winner = rand_val <= winning_chance
+    result_symbols = []
+    prize = 0
+
+    if is_winner:
+        # GANA: Selecciona 3 símbolos idénticos
+        winning_sym = random.choice(symbols)
+        result_symbols = [winning_sym, winning_sym, winning_sym]
+        mult = SLOTS_MULTIPLIERS.get(winning_sym, 2)
+        prize = cost * mult
+    else:
+        # PIERDE: Selecciona 3 símbolos no alineados de forma aleatoria
+        while True:
+            result_symbols = [random.choice(symbols) for _ in range(3)]
+            # Asegurarnos de que no sean idénticos
+            if len(set(result_symbols)) > 1:
+                break
+
+    # Actualizar balance de monedas
+    delta = prize - cost
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$inc": {"coins_balance": delta}}
+    )
+
+    # Registrar en el historial de transacciones de monedas
+    if delta != 0:
+        await db.recharges.insert_one({
+            "recharge_id": f"rch_slots_{uuid.uuid4().hex[:8]}",
+            "user_id": user["user_id"],
+            "user_email": user["email"],
+            "user_name": u.get("name", "Usuario"),
+            "payment_method_id": "slots",
+            "payment_method_name": f"Tragamonedas ({body.slot_type.capitalize()})",
+            "amount_usd": 0.0,
+            "coins": delta,
+            "proof_note": f"Giro de tragamonedas: [{', '.join(result_symbols)}] " + ("¡GANADOR!" if is_winner else "Perdido"),
+            "proof_url": None,
+            "status": "approved",
+            "created_at": iso(now_utc()),
+            "reviewed_at": iso(now_utc()),
+            "review_note": "Acreditado automáticamente por juego de tragamonedas",
+        })
+
+    return {
+        "ok": True,
+        "is_winner": is_winner,
+        "symbols": result_symbols,
+        "prize": prize,
+        "coins_balance": u.get("coins_balance", 0) + delta
+    }
+
+
+# ----------------------- Admin: Slots Config -----------------------
+@api.get("/admin/slots/config")
+async def admin_get_slots_config(_: dict = Depends(require_admin)):
+    cfg = await db.settings.find_one({"type": "slots_config"}, {"_id": 0})
+    if not cfg:
+        return {"winning_chance": 35}
+    return {"winning_chance": cfg.get("winning_chance", 35)}
+
+
+@api.post("/admin/slots/config")
+async def admin_save_slots_config(body: SlotsConfigIn, _: dict = Depends(require_admin)):
+    await db.settings.update_one(
+        {"type": "slots_config"},
+        {"$set": {"winning_chance": body.winning_chance, "updated_at": iso(now_utc())}},
+        upsert=True
+    )
+    return {"ok": True}
 
 
 # ----------------------- Admin: Loterías y Tickets -----------------------
