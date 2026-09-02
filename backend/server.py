@@ -492,9 +492,9 @@ async def get_seo_config():
     cfg = await db.settings.find_one({"type": "seo"}, {"_id": 0})
     if not cfg:
         return {
-            "title": "BetRex.app — Pronósticos Deportivos y Lotería",
-            "description": "BetRex — Pronósticos deportivos profesionales y mercados con coins virtuales.",
-            "keywords": "betrex, apuestas, pronósticos, futbol, béisbol, loteria, monedas virtuales"
+            "title": "BetRex.app — Plataforma de Apuestas Deportivas y Lotería Virtual",
+            "description": "BetRex es la plataforma de apuestas y pronósticos deportivos líder con monedas virtuales propias. ¡Apuesta de forma divertida, sin riesgos y siente toda la emoción de ganar en tus deportes favoritos hoy!",
+            "keywords": "betrex, apuestas, pronósticos, futbol, béisbol, loteria, monedas virtuales, casino"
         }
     return cfg.get("config") or {}
 

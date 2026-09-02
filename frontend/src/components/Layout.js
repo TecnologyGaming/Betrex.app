@@ -179,21 +179,43 @@ export default function Layout({ children }) {
         {children}
       </main>
 
-      <footer className="mt-20 border-t border-zinc-900">
+      <footer className="mt-20 border-t border-zinc-900 bg-black/60 relative z-20">
+        {/* Grilla de Métodos de Pago y Partners de Confianza */}
+        <div className="border-b border-zinc-900/60 py-6 bg-black/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-zinc-500 font-mono text-[10px] font-bold uppercase tracking-widest text-center">
+              <span>Visa</span>
+              <span>MasterCard</span>
+              <span>Bank Transfer</span>
+              <span>Zimpler</span>
+              <span>Trustly</span>
+              <span>Revolut</span>
+              <span>Skrill</span>
+              <span>Neteller</span>
+              <span>Rapid Transfer</span>
+              <span>Paysafecard</span>
+              <span>AstroPay</span>
+              <span>Jetonbank</span>
+              <span>MiFinity</span>
+              <span>CASHlib</span>
+            </div>
+          </div>
+        </div>
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid md:grid-cols-3 gap-8 text-sm">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <img src="/logo.png" alt="BetRex" className="max-w-[180px] h-[60px] sm:max-w-[280px] sm:h-[90px] lg:max-w-[450px] lg:h-[140px] object-contain" />
             </div>
-            <p className="text-zinc-400 leading-relaxed">
+            <p className="text-zinc-400 leading-relaxed text-xs">
               {lang === "es"
-                ? "Plataforma profesional de pronósticos y mercados prop. Comunidad seria, tipsters verificados."
-                : "Pro predictions platform and prop markets. Serious community, verified tipsters."}
+                ? "Plataforma de apuestas deportivas líder que utiliza monedas virtuales propias. ¡Apuesta de forma divertida, sin riesgo y siente toda la emoción de ganar hoy!"
+                : "Leading sports betting platform using own virtual coins. Bet in a fun, risk-free way and feel all the excitement of winning today!"}
             </p>
           </div>
           <div>
-            <div className="label mb-3">{lang === "es" ? "Deportes" : "Sports"}</div>
-            <ul className="space-y-1.5 text-zinc-400">
+            <div className="label mb-3">{lang === "es" ? "Deportes & Enlaces" : "Sports & Links"}</div>
+            <ul className="space-y-1.5 text-zinc-400 text-xs">
               {SPORTS.map((s) => (
                 <li key={s.key}>
                   <Link to={`/predictions?sport=${s.key}`} className="hover:text-[#d4ff00]">
@@ -201,10 +223,25 @@ export default function Layout({ children }) {
                   </Link>
                 </li>
               ))}
+              <li className="pt-2 border-t border-zinc-900/50">
+                <Link to="/terms" className="text-zinc-300 hover:text-[#d4ff00] font-bold">
+                  ⚖ {lang === "es" ? "Términos y Condiciones" : "Terms & Conditions"}
+                </Link>
+              </li>
             </ul>
           </div>
           <div>
             <Banner zone="footer" />
+          </div>
+
+          {/* MGA License block / Malta regulator */}
+          <div className="md:col-span-3 border-t border-zinc-900/60 pt-6 text-center space-y-4">
+            <p className="text-[10px] text-zinc-500 leading-relaxed max-w-4xl mx-auto">
+              The official number and date of issue of the license is <strong className="text-zinc-400">BETREX/B2C/767/2023</strong> issued on <strong className="text-zinc-400">11.10.2023</strong>. This public regulatory body is responsible for the governance of all forms of gaming based in Malta. Find out more about the MGA at www.mga.org.mt.
+            </p>
+            <p className="text-[10px] text-zinc-600 leading-relaxed max-w-4xl mx-auto">
+              Copyright © 2024. This website is operated by BetRex Ltd. according to Maltese Law whose registered office is at Level 3 (Suite No.3333) Tower Business Centre, Triq It-Torri, Swatar, Birkirkara BKR 4013, Malta.
+            </p>
           </div>
 
           <div className="md:col-span-3 border-t border-zinc-900/50 pt-6 mt-2">
@@ -213,14 +250,25 @@ export default function Layout({ children }) {
             </h4>
             <p className="text-xs text-zinc-500 leading-relaxed">
               {lang === "es" ? (
-                "BetRex es una plataforma de entretenimiento y simulación deportiva. Todo el sistema funciona única y exclusivamente con monedas virtuales sin valor económico real. No se ofrecen juegos de azar con dinero real, apuestas deportivas reales, ni la posibilidad de ganar dinero u obsequios de valor real. La participación, la simulación o el éxito en nuestro simulador de pronósticos no garantizan el éxito futuro en apuestas con dinero real. Juega de manera responsable, informada y moderada. Si consideras que estás desarrollando un problema relacionado con el juego, te instamos a buscar orientación y ayuda profesional."
+                "BetRex es una plataforma de apuestas deportivas y entretenimiento que utiliza exclusivamente monedas virtuales propias de la plataforma para jugar sin riesgo financiero real. No se ofrecen juegos de azar con dinero real ni la oportunidad de ganar premios monetarios reales. La participación y el éxito en nuestro simulador no garantizan el éxito futuro en apuestas con dinero real de verdad. Juega de manera responsable y moderada."
               ) : (
-                "BetRex is an entertainment and sports simulation platform. The entire system operates solely and exclusively with virtual coins that have no real monetary value. We do not offer real money gambling, real sports betting, or any opportunity to win real money or prizes of monetary value. Practice, simulation, or success in our predictions simulator does not imply or guarantee future success in real money gambling. Play responsibly, mindfully, and in moderation. If you feel you may be developing a gambling-related issue, we strongly encourage you to seek professional support and guidance."
+                "BetRex is a sports betting and entertainment platform that operates solely and exclusively using the platform's own virtual coins for risk-free entertainment. We do not offer real money gambling, real sports betting, or any opportunity to win real money or prizes. Practice or success in our simulator does not imply or guarantee future success in real-world gambling. Play responsibly and in moderation."
               )}
             </p>
           </div>
         </div>
-        <div className="border-t border-zinc-900 py-4 text-center text-xs text-zinc-500">
+
+        {/* Responsible gambling badges & certifications */}
+        <div className="border-t border-zinc-900 py-6 bg-black/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-zinc-500 font-mono text-[9px] font-black uppercase tracking-wider text-center">
+            <span className="border border-zinc-800 rounded px-1.5 py-0.5 text-zinc-400 text-xs">18+</span>
+            <span className="hover:text-[#d4ff00] transition-colors">eCOGRA</span>
+            <span className="hover:text-[#d4ff00] transition-colors">Responsible Gaming Foundation</span>
+            <span className="hover:text-[#d4ff00] transition-colors">Gambling Therapy (GA)</span>
+          </div>
+        </div>
+
+        <div className="border-t border-zinc-900/80 py-4 text-center text-xs text-zinc-500 font-mono bg-black">
           © 2024 BetRex.app · {lang === "es" ? "Apuesta con responsabilidad" : "Bet responsibly"} · 18+
         </div>
       </footer>
