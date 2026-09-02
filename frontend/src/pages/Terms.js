@@ -45,10 +45,10 @@ export default function Terms() {
 
           <h3 className="text-[#d4ff00] font-bold text-lg uppercase tracking-tight">3. Licencias y Regulación Oficial</h3>
           <p>
-            Como operadores oficiales de juego en línea, te informamos de forma transparente que nuestra plataforma opera bajo la licencia oficial emitida por la Autoridad de Juegos de Malta (MGA):
+            Como operadores oficiales de juego en línea, te informamos de forma transparente que nuestra plataforma opera bajo la licencia oficial de BetRex:
           </p>
           <div className="p-4 rounded border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 font-mono text-xs leading-relaxed">
-            The official number and date of issue of the license is <strong>BETREX/B2C/767/2023</strong> issued on <strong>11.10.2023</strong>. BetRex.app is operated according to Maltese Law and regulated by the Malta Gaming Authority.
+            The official number and date of issue of the license is <strong>BETREX/B2C/767/2023</strong> issued on <strong>11.10.2023</strong>. BetRex.app is operated according to Maltese Law and regulated by BetRex.
           </div>
 
           <h3 className="text-[#d4ff00] font-bold text-lg uppercase tracking-tight">4. Quién puede participar</h3>

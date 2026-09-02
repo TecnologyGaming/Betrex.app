@@ -391,17 +391,41 @@ async def register(body: RegisterIn, response: Response):
             
     my_ref_code = f"REF-{uuid.uuid4().hex[:6].upper()}"
     user_id = f"user_{uuid.uuid4().hex[:12]}"
+    
+    # Bono de bienvenida por defecto: se obsequian 2 Tickets de Powerball
+    # Agregamos los 2 tickets de regalo a la base de datos de Lotería directamente para el nuevo usuario
+    for _ in range(2):
+        t_id = f"tkt_reg_{uuid.uuid4().hex[:10]}"
+        # Generar números aleatorios para los boletos de regalo de Powerball
+        nums = sorted(random.sample(range(1, 70), 5))
+        special = random.randint(1, 26)
+        await db.lottery_tickets.insert_one({
+            "ticket_id": t_id,
+            "user_id": user_id,
+            "user_email": email,
+            "user_name": body.name,
+            "lottery_type": "powerball",
+            "numbers": nums,
+            "special_ball": special,
+            "cost": 0,
+            "status": "pending",
+            "prize_coins": 0,
+            "ticket_image_url": None,
+            "created_at": iso(now_utc()),
+            "is_gift": True
+        })
+
     user = {
         "user_id": user_id,
         "email": email,
         "name": body.name,
         "password_hash": hash_pw(body.password),
         "role": "user",
-        "coins_balance": welcome + referral_bonus,
+        "coins_balance": referral_bonus, # El balance de monedas de bienvenida se reemplaza por los boletos, el bono de referido otorga 100 si fue referido
         "language": "es",
         "picture": None,
         "auth_provider": "local",
-        "welcome_bonus_granted": welcome > 0,
+        "welcome_bonus_granted": True, # Forzado a True para mostrar la ventana de obsequio de bienvenida
         "streak_current": 0,
         "streak_best": 0,
         "last_streak_claim_date": None,
@@ -1593,6 +1617,130 @@ async def admin_save_slots_config(body: SlotsConfigIn, _: dict = Depends(require
         {"$set": {"winning_chance": body.winning_chance, "updated_at": iso(now_utc())}},
         upsert=True
     )
+    return {"ok": True}
+
+
+# ----------------------- Chatbot Endpoints -----------------------
+class ChatMessageIn(BaseModel):
+    text: str
+
+
+@api.get("/chat/{user_id}")
+async def get_chat_history(user_id: str, user: dict = Depends(get_current_user)):
+    # Retornar el historial de chat de este usuario
+    history = await db.chats.find_one({"user_id": user_id}, {"_id": 0})
+    return history or {"user_id": user_id, "messages": [], "speak_to_operator": False}
+
+
+@api.post("/chat/send")
+async def chat_send_message(body: ChatMessageIn, user: dict = Depends(get_current_user)):
+    u_id = user["user_id"]
+    text = body.text.strip()
+    
+    # Crear mensaje del usuario
+    msg = {
+        "sender": "user",
+        "text": text,
+        "time": now_utc().strftime("%H:%M")
+    }
+
+    chat = await db.chats.find_one({"user_id": u_id})
+    if not chat:
+        chat = {
+            "user_id": u_id,
+            "user_email": user["email"],
+            "user_name": user.get("name", "Usuario"),
+            "messages": [msg],
+            "speak_to_operator": False,
+            "updated_at": iso(now_utc())
+        }
+        await db.chats.insert_one(chat)
+    else:
+        await db.chats.update_one(
+            {"user_id": u_id},
+            {"$push": {"messages": msg}, "$set": {"updated_at": iso(now_utc())}}
+        )
+
+    # Si ya está asignado a un operador, no responde el bot
+    if chat.get("speak_to_operator"):
+        return {"sender": "bot", "text": "⏳ Tu mensaje ha sido enviado al operador. Te responderá por esta misma ventana de chat en un momento.", "speak_to_operator": True}
+
+    # Respuestas automáticas del bot inteligente en base a la información del portal
+    text_lower = text.lower()
+    reply_text = "Disculpa, no entendí bien tu consulta. ¿Deseas que te comunique con un operador humano de BetRex?"
+    speak_to_op = False
+
+    if "hola" in text_lower or "buenos dias" in text_lower or "buenas tardes" in text_lower:
+        reply_text = f"¡Hola, {user.get('name', 'amigo')}! ⚡ Soy AstroRex, tu asistente virtual de BetRex.app. ¿Quieres saber sobre pronósticos, apuestas, loterías o cómo recargar tu cuenta?"
+    elif "pronostico" in text_lower or "apuesta" in text_lower or "pick" in text_lower:
+        reply_text = "En BetRex ofrecemos pronósticos de élite de fútbol, caballos (carreras americanas) y béisbol de la MLB. Puedes verlos en la sección 'Pronósticos' y apostar tu saldo en vivo en la pestaña 'Mercados'."
+    elif "recarga" in text_lower or "billetera" in text_lower or "wallet" in text_lower or "stripe" in text_lower or "pagar" in text_lower or "deposito" in text_lower:
+        reply_text = "Puedes recargar tu saldo de juego de forma segura en la sección 'Billetera' (Wallet). Aceptamos Stripe (tarjeta de crédito), Zelle y Binance Pay. El monto mínimo de recarga es de solo $5 USD y tus pagos con tarjeta se acreditan al instante."
+    elif "loteria" in text_lower or "powerball" in text_lower or "megamillion" in text_lower or "sorteo" in text_lower:
+        reply_text = "¡Sí! En la pestaña 'Lotería' puedes escoger tus números de la suerte para el Powerball y Mega Millions. Cada boleto cuesta $100. El administrador comprará el ticket físico real y subirá la foto escaneada para que puedas verificarlo en tu historial."
+    elif "racha" in text_lower or "streak" in text_lower or "bono" in text_lower:
+        reply_text = "Ofrecemos un sistema de Racha Diaria por iniciar sesión y un 'Bono de Racha de Victorias' si ganas apuestas consecutivas: ¡gana 3 consecutivas para +$100, 5 para +$300, o 10 para +$1000 de bono!"
+    elif "referido" in text_lower or "invitar" in text_lower or "codigo" in text_lower:
+        reply_text = "¡Invita a tus amigos con tu código único de referido (disponible en tu Perfil) y gana $500 de regalo en tu saldo por cada amigo que se registre!"
+    elif "operador" in text_lower or "soporte" in text_lower or "ayuda" in text_lower or "humano" in text_lower or "hablar" in text_lower or "persona" in text_lower:
+        reply_text = "🔔 Entendido. He enviado una alerta a nuestro equipo de soporte de BetRex. Un operador humano se unirá a este chat de inmediato para ayudarte de forma personalizada."
+        speak_to_op = True
+        await db.chats.update_one({"user_id": u_id}, {"$set": {"speak_to_operator": True}})
+
+    bot_msg = {
+        "sender": "bot",
+        "text": reply_text,
+        "time": now_utc().strftime("%H:%M")
+    }
+    await db.chats.update_one({"user_id": u_id}, {"$push": {"messages": bot_msg}})
+
+    return {"sender": "bot", "text": reply_text, "speak_to_operator": speak_to_op}
+
+
+@api.post("/chat/operator-request")
+async def chat_request_operator(user: dict = Depends(get_current_user)):
+    await db.chats.update_one({"user_id": user["user_id"]}, {"$set": {"speak_to_operator": True}})
+    return {"ok": True}
+
+
+# ----------------------- Admin: Chat de Soporte -----------------------
+class AdminReplyChatIn(BaseModel):
+    user_id: str
+    text: str
+
+
+@api.get("/admin/chats")
+async def admin_list_chats(_: dict = Depends(require_admin)):
+    # Retornar los chats con mensajes ordenados por última actualización
+    return await db.chats.find({}, {"_id": 0}).sort("updated_at", -1).to_list(100)
+
+
+@api.post("/admin/chats/reply")
+async def admin_reply_chat(body: AdminReplyChatIn, _: dict = Depends(require_admin)):
+    msg = {
+        "sender": "operator",
+        "text": body.text.strip(),
+        "time": now_utc().strftime("%H:%M")
+    }
+    res = await db.chats.update_one(
+        {"user_id": body.user_id},
+        {"$push": {"messages": msg}, "$set": {"updated_at": iso(now_utc())}}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Chat not found")
+        
+    # Enviar notificación push al usuario
+    u = await db.users.find_one({"user_id": body.user_id}, {"_id": 0})
+    if u and u.get("push_sub"):
+        try:
+            send_push_to(u["push_sub"], {
+                "title": "Soporte de BetRex",
+                "body": f"Operador: {body.text[:40]}...",
+                "url": "/profile"
+            })
+        except Exception:
+            pass
+            
     return {"ok": True}
 
 

@@ -13,7 +13,7 @@ export default function Wallet() {
   const [methods, setMethods] = useState([]);
   const [recharges, setRecharges] = useState([]);
   const [pmId, setPmId] = useState("");
-  const [amount, setAmount] = useState(10);
+  const [amount, setAmount] = useState(5);
   const [note, setNote] = useState("");
   const [proofUrl, setProofUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -152,7 +152,7 @@ export default function Wallet() {
           <Coins size={32} weight="fill" color="#d4ff00" />
           <div>
             <div className="label">{t("common.balance")}</div>
-            <div className="font-mono font-bold text-3xl text-[#d4ff00]" data-testid="wallet-balance">{user.coins_balance}</div>
+            <div className="font-mono font-bold text-3xl text-[#d4ff00]" data-testid="wallet-balance">${user.coins_balance}</div>
           </div>
         </div>
       </div>
@@ -186,7 +186,7 @@ export default function Wallet() {
               </div>
             ) : (
               <div className="text-xs text-[#d4ff00] font-mono font-bold">
-                {lang === "es" ? "Costo: 500 monedas / 30 días" : "Cost: 500 coins / 30 days"}
+                {lang === "es" ? "Costo: $5 USD / 30 días" : "Cost: $5 USD / 30 days"}
               </div>
             )}
           </div>
@@ -197,7 +197,7 @@ export default function Wallet() {
               className="btn-primary w-full justify-center text-sm font-black py-3 px-6 shadow-lg shadow-[#d4ff00]/10 transition-transform active:scale-[0.98]"
               style={{ backgroundColor: '#d4ff00', color: 'black' }}
             >
-              {subBusy ? "..." : isPremiumActive() ? (lang === "es" ? "Renovar (500 🪙)" : "Renew (500 🪙)") : (lang === "es" ? "Suscribirse (500 🪙)" : "Subscribe (500 🪙)")}
+              {subBusy ? "..." : isPremiumActive() ? (lang === "es" ? "Renovar ($5 USD)" : "Renew ($5 USD)") : (lang === "es" ? "Suscribirse ($5 USD)" : "Subscribe ($5 USD)")}
             </button>
             {subErr && <div className="text-[#ff3b30] text-xs text-center mt-2 font-semibold">{subErr}</div>}
             {subSuccess && <div className="text-emerald-400 text-xs text-center mt-2 font-semibold">
@@ -255,11 +255,11 @@ export default function Wallet() {
           <div>
             <label className="label">{t("common.amount")} (USD)</label>
             <input
-              type="number" min={10} max={7000} step={10}
+              type="number" min={5} max={7000} step={5}
               value={amount} onChange={(e) => setAmount(e.target.value)}
               className="input" required data-testid="recharge-amount"
             />
-            <div className="text-xs text-zinc-500 mt-1 font-mono">= {Number(amount) * 100} {t("common.coins")}</div>
+            <div className="text-xs text-zinc-500 mt-1 font-mono">= ${Number(amount)} USD</div>
           </div>
 
           {!isStripe && (

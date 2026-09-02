@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLang } from "../contexts/LanguageContext";
-import { X, Gift, Coins } from "@phosphor-icons/react";
+import { X, Gift, Coins, Ticket } from "@phosphor-icons/react";
 
 export default function WelcomeBonusModal() {
   const { user } = useAuth();
@@ -41,22 +41,22 @@ export default function WelcomeBonusModal() {
         </h2>
         <p className="text-zinc-400 text-xs mt-1">
           {lang === "es"
-            ? "Te damos coins gratis para empezar a jugar."
-            : "Free coins to get you started."}
+            ? "Te obsequiamos 2 boletos de Powerball de regalo para que empieces a ganar en grande."
+            : "We give you 2 free Powerball tickets to get you started on winning big."}
         </p>
 
-        <div className="my-4 inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#d4ff00]/10 border border-[#d4ff00]/30">
-          <Coins size={24} weight="fill" color="#d4ff00" />
+        <div className="my-4 inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#d4ff00]/10 border border-[#d4ff00]/30 animate-bounce">
+          <Ticket size={24} weight="fill" color="#d4ff00" />
           <div>
-            <div className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold leading-none mb-1">{t("common.youReceived")}</div>
-            <div className="font-mono font-black text-2xl text-[#d4ff00] leading-none">+100</div>
+            <div className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold leading-none mb-1">{lang === "es" ? "Regalo Especial" : "Special Gift"}</div>
+            <div className="font-mono font-black text-lg text-[#d4ff00] leading-none">{lang === "es" ? "2 BOLETOS POWERBALL" : "2 POWERBALL TICKETS"}</div>
           </div>
         </div>
 
         <p className="text-[10px] text-zinc-500 mb-4 leading-relaxed">
           {lang === "es"
-            ? "Inicia sesión cada día para sumar coins extra con el sistema de rachas."
-            : "Log in daily for extra coins via the streak system."}
+            ? "¡Tus boletos ya han sido acreditados de obsequio a tu cuenta de Lotería!"
+            : "Your tickets have already been credited as a gift to your Lottery account!"}
         </p>
 
         <button onClick={close} className="btn-primary w-full justify-center !py-2 text-xs font-black uppercase tracking-wider" style={{ backgroundColor: '#d4ff00', color: 'black' }}>

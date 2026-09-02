@@ -20,6 +20,7 @@ import Horoscope from "@/pages/Horoscope";
 import Lottery from "@/pages/Lottery";
 import Slots from "@/pages/Slots";
 import Terms from "@/pages/Terms";
+import Chatbot from "@/components/Chatbot";
 import BetOfTheDayModal from "@/components/BetOfTheDayModal";
 import WelcomeBonusModal from "@/components/WelcomeBonusModal";
 import api from "@/lib/api";
@@ -54,6 +55,7 @@ function AppRouter() {
   const isAuthOrAdmin = /^\/(login|register|auth|admin)/.test(location.pathname);
   return (
     <Layout>
+      <Chatbot />
       {!isAuthOrAdmin && <BetOfTheDayModal />}
       {!isAuthOrAdmin && <WelcomeBonusModal />}
       <Routes>

@@ -6,7 +6,7 @@ import { useLang } from "../contexts/LanguageContext";
 import {
   ChartBar, ListChecks, Lightning, Image as ImageIcon, Money,
   CurrencyDollar, Users, Megaphone, Plus, PencilSimple, TrashSimple, Check, X,
-  CloudArrowDown, Gift, Globe, Ticket,
+  CloudArrowDown, Gift, Globe, Ticket, ChatCenteredText,
 } from "@phosphor-icons/react";
 
 const SPORTS = ["football", "horse", "baseball", "lottery"];
@@ -1085,7 +1085,7 @@ function SEOTab() {
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             className="input"
             required
-            placeholder="BetRex.app — Pronósticos Deportivos y Lotería"
+            placeholder="BetRex.app — Plataforma de Apuestas Deportivas y Lotería Virtual"
           />
         </div>
         <div>
@@ -1096,7 +1096,7 @@ function SEOTab() {
             className="input"
             required
             rows={3}
-            placeholder="BetRex es una plataforma de simulación y pronósticos..."
+            placeholder="BetRex es la plataforma de apuestas y pronósticos deportivos líder con monedas virtuales..."
           />
         </div>
         <div>
@@ -1297,6 +1297,156 @@ function LotteryTab() {
   );
 }
 
+function SupportChatTab() {
+  const { lang } = useLang();
+  const [chats, setChats] = useState([]);
+  const [activeUser, setActiveUser] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    api.get("/admin/chats").then(({ data }) => setChats(data || [])).catch(() => {});
+  };
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 5000); // Polling cada 5 segs
+    return () => clearInterval(interval);
+  }, []);
+
+  const sendReply = async (e) => {
+    e.preventDefault();
+    if (!replyText.trim() || !activeUser || busy) return;
+    setBusy(true);
+    try {
+      await api.post("/admin/chats/reply", { user_id: activeUser.user_id, text: replyText });
+      setReplyText("");
+      load();
+    } catch (e) {
+      alert("Error: " + (e?.response?.data?.detail || "Error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const selectedChat = chats.find((c) => c.user_id === activeUser?.user_id);
+
+  return (
+    <div className="pz-card p-6 space-y-4">
+      <h2 className="font-display font-bold text-2xl uppercase flex items-center gap-2">
+        <ChatCenteredText size={24} weight="duotone" color="#d4ff00" />
+        {lang === "es" ? "Chat de Soporte Técnico" : "Support Chat Center"}
+      </h2>
+      <p className="text-sm text-zinc-400">
+        {lang === "es"
+          ? "Responde en tiempo real a las consultas de tus usuarios. Puedes ver quiénes han solicitado hablar con un operador humano."
+          : "Reply in real time to your users' inquiries. You can see who has requested to speak with a human operator."}
+      </p>
+
+      <div className="grid md:grid-cols-12 gap-6 h-[500px]">
+        {/* Lista de Chats activos */}
+        <div className="md:col-span-4 border border-zinc-800 bg-zinc-950/40 rounded-xl overflow-hidden flex flex-col h-full">
+          <div className="bg-zinc-950 px-4 py-3 border-b border-zinc-800 font-black uppercase text-xs tracking-wider text-zinc-400">
+            Chats Activos
+          </div>
+          <div className="flex-1 overflow-y-auto divide-y divide-zinc-900/60 scrollbar-thin">
+            {chats.length === 0 ? (
+              <div className="text-center text-zinc-600 text-xs py-12">No hay chats activos.</div>
+            ) : (
+              chats.map((c) => (
+                <button
+                  key={c.user_id}
+                  onClick={() => setActiveUser(c)}
+                  className={`w-full p-4 text-left transition-colors flex items-center justify-between ${
+                    activeUser?.user_id === c.user_id ? "bg-[#d4ff00]/10 border-r-2 border-[#d4ff00]" : "hover:bg-zinc-900/40"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-white truncate">{c.user_name}</div>
+                    <div className="text-[10px] text-zinc-500 font-mono truncate">{c.user_email}</div>
+                  </div>
+                  {c.speak_to_operator && (
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-amber-500 text-black shrink-0 animate-pulse">SOS</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Ventana de chat actual */}
+        <div className="md:col-span-8 border border-zinc-800 bg-zinc-950/20 rounded-xl flex flex-col h-full overflow-hidden">
+          {selectedChat ? (
+            <>
+              {/* Cabecera */}
+              <div className="bg-zinc-950 px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-black text-white uppercase">{selectedChat.user_name}</div>
+                  <div className="text-[9px] text-zinc-500 font-mono">{selectedChat.user_email}</div>
+                </div>
+              </div>
+
+              {/* Mensajes */}
+              <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin">
+                {selectedChat.messages.map((m, i) => {
+                  const isUser = m.sender === "user";
+                  const isOperator = m.sender === "operator";
+                  return (
+                    <div
+                      key={i}
+                      className={`flex ${isUser ? "justify-start" : "justify-end"}`}
+                    >
+                      <div
+                        className={`max-w-[75%] p-3 rounded-2xl text-xs leading-relaxed ${
+                          isUser
+                            ? "bg-zinc-900 text-zinc-300 rounded-tl-none border border-zinc-800/40"
+                            : isOperator
+                            ? "bg-[#d4ff00] text-black font-semibold rounded-tr-none"
+                            : "bg-zinc-950 text-zinc-500 border border-zinc-900 rounded-tr-none italic"
+                        }`}
+                      >
+                        <div className="text-[8px] text-zinc-500 mb-1 font-mono font-bold uppercase">{m.sender}</div>
+                        <div>{m.text}</div>
+                        <div className={`text-[8px] mt-1 text-right font-mono ${isUser ? "text-zinc-500" : "text-black/60"}`}>
+                          {m.time}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Responder */}
+              <form onSubmit={sendReply} className="p-3 bg-zinc-950 border-t border-zinc-800 flex gap-2">
+                <input
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Escribe una respuesta para el usuario..."
+                  className="input !py-1.5 flex-1 text-xs"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !replyText.trim()}
+                  className="btn-primary !py-1.5 !px-4 text-xs font-black uppercase"
+                  style={{ backgroundColor: '#d4ff00', color: 'black' }}
+                >
+                  Enviar
+                </button>
+              </form>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-500 p-8">
+              <ChatCenteredText size={48} className="text-zinc-600 mb-2 animate-bounce" />
+              <div>Selecciona un chat de la lista izquierda para iniciar la conversación.</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---- Layout ----
 const TABS = [
   { key: "metrics", icon: ChartBar, label: "admin.metrics", Comp: MetricsTab },
@@ -1311,6 +1461,7 @@ const TABS = [
   { key: "notifications", icon: Megaphone, label: "admin.notifications", Comp: NotificationsTab },
   { key: "seo", icon: Globe, label: "admin.seo", Comp: SEOTab },
   { key: "lottery", icon: Ticket, label: "admin.lottery" || "Lottery", Comp: LotteryTab },
+  { key: "chats", icon: ChatCenteredText, label: "admin.chats" || "Chats", Comp: SupportChatTab },
 ];
 
 export default function Admin() {

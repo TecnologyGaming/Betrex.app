@@ -15,7 +15,7 @@ const TRANSLATIONS = {
       logout: "Salir",
     },
     common: {
-      coins: "coins",
+      coins: "USD",
       odds: "Cuota",
       stake: "Stake",
       analysis: "Análisis",
@@ -98,11 +98,11 @@ const TRANSLATIONS = {
     },
     wallet: {
       title: "Billetera",
-      subtitle: "Recarga tus coins y revisa tus solicitudes.",
+      subtitle: "Recarga tu saldo para seguir jugando.",
       newRecharge: "Nueva recarga",
       myRecharges: "Mis recargas",
-      ratePerDollar: "Equivalencia: 1 USD = 100 coins.",
-      minMax: "Mínimo $20 USD · Máximo $7,000 USD",
+      ratePerDollar: "Equivalencia: 1 USD = $1 USD en saldo.",
+      minMax: "Mínimo $5 USD · Máximo $7,000 USD",
       proofNote: "Notas / referencia del pago",
       proofUrl: "URL del comprobante (opcional)",
       pickMethod: "Selecciona método",
@@ -159,7 +159,7 @@ const TRANSLATIONS = {
       logout: "Logout",
     },
     common: {
-      coins: "coins",
+      coins: "USD",
       odds: "Odds",
       stake: "Stake",
       analysis: "Analysis",
@@ -242,11 +242,11 @@ const TRANSLATIONS = {
     },
     wallet: {
       title: "Wallet",
-      subtitle: "Recharge coins and review your requests.",
+      subtitle: "Recharge your balance to keep playing.",
       newRecharge: "New recharge",
       myRecharges: "My recharges",
-      ratePerDollar: "Rate: 1 USD = 100 coins.",
-      minMax: "Min $20 USD · Max $7,000 USD",
+      ratePerDollar: "Rate: 1 USD = $1 USD in balance.",
+      minMax: "Min $5 USD · Max $7,000 USD",
       proofNote: "Payment notes / reference",
       proofUrl: "Receipt URL (optional)",
       pickMethod: "Pick method",
@@ -294,7 +294,20 @@ const TRANSLATIONS = {
 const LangContext = createContext({ lang: "es", t: (k) => k, setLang: () => {} });
 
 export function LanguageProvider({ children }) {
-  const [lang, setLangState] = useState(localStorage.getItem("pz_lang") || "es");
+  // Detectar idioma del navegador por defecto (ES o EN) si no hay ninguno guardado
+  const detectLanguage = () => {
+    const saved = localStorage.getItem("pz_lang");
+    if (saved) return saved;
+    try {
+      const browserLang = navigator.language || navigator.userLanguage || "";
+      if (browserLang.toLowerCase().startsWith("en")) {
+        return "en";
+      }
+    } catch (e) {}
+    return "es"; // Por defecto Español
+  };
+
+  const [lang, setLangState] = useState(detectLanguage());
 
   const setLang = useCallback((l) => {
     setLangState(l);

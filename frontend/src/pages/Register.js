@@ -70,11 +70,11 @@ export default function Register() {
             <label htmlFor="agree-checkbox" className="text-xs text-zinc-400 select-none leading-relaxed cursor-pointer">
               {lang === "es" ? (
                 <>
-                  Confirmo que tengo <strong className="text-zinc-300 font-bold">18 años o más</strong> y acepto las políticas de <strong className="text-zinc-300 font-bold">Juego Responsable</strong> de BetRex.app. Entiendo que es una plataforma de simulación con monedas virtuales sin valor real.
+                  Confirmo que tengo <strong className="text-zinc-300 font-bold">18 años o más</strong> y acepto las políticas de <strong className="text-zinc-300 font-bold">Juego Responsable</strong> de BetRex.app. Entiendo que esta es una plataforma de apuestas con dólares para poder jugar.
                 </>
               ) : (
                 <>
-                  I confirm that I am <strong className="text-zinc-300 font-bold">18 years or older</strong> and accept the <strong className="text-zinc-300 font-bold">Responsible Gaming</strong> policies of BetRex.app. I understand this is a simulation platform with virtual coins of no real value.
+                  I confirm that I am <strong className="text-zinc-300 font-bold">18 years or older</strong> and accept the <strong className="text-zinc-300 font-bold">Responsible Gaming</strong> policies of BetRex.app. I understand this is a betting platform using dollars to play.
                 </>
               )}
             </label>
