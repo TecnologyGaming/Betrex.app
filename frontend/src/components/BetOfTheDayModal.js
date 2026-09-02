@@ -45,26 +45,26 @@ export default function BetOfTheDayModal() {
       onClick={() => close(false)}
     >
       <div
-        className="pz-card relative max-w-lg w-full overflow-hidden"
+        className="pz-card relative max-w-md w-full overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         data-testid="botd-modal"
       >
         {/* Glow header */}
-        <div className="relative h-32 sm:h-40 overflow-hidden">
+        <div className="relative h-24 sm:h-28 overflow-hidden">
           <div
             className="absolute inset-0"
             style={{
               background:
-                "radial-gradient(ellipse at center, rgba(212,255,0,0.4) 0%, transparent 60%), linear-gradient(135deg, #050505 0%, #1a1a1a 100%)",
+                "radial-gradient(ellipse at center, rgba(212,255,0,0.3) 0%, transparent 65%), linear-gradient(135deg, #050505 0%, #1a1a1a 100%)",
             }}
           />
           <div className="absolute inset-0 grid place-items-center">
             <div className="text-center">
-              <Crown size={48} weight="fill" color="#d4ff00" className="mx-auto" />
-              <div className="font-display font-black text-2xl uppercase tracking-tighter mt-1">
+              <Crown size={28} weight="fill" color="#d4ff00" className="mx-auto" />
+              <div className="font-display font-black text-xl uppercase tracking-tighter mt-0.5">
                 {t("common.betOfTheDay")}
               </div>
-              <div className="text-xs text-zinc-400 mt-1">
+              <div className="text-[10px] text-zinc-500 mt-0.5">
                 {new Date(data.date).toLocaleDateString(lang === "es" ? "es-ES" : "en-US", {
                   weekday: "long", day: "numeric", month: "long",
                 })}

@@ -26,40 +26,40 @@ export default function WelcomeBonusModal() {
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/85 backdrop-blur-sm p-4 fade-up"
          onClick={close} data-testid="welcome-overlay">
-      <div className="pz-card relative max-w-md w-full overflow-hidden text-center p-8"
+      <div className="pz-card relative max-w-sm w-full overflow-hidden text-center p-6"
            onClick={(e) => e.stopPropagation()} data-testid="welcome-modal">
         <button onClick={close} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 grid place-items-center hover:bg-black">
           <X size={16} weight="bold" />
         </button>
 
-        <div className="mx-auto w-20 h-20 rounded-full bg-[#d4ff00] grid place-items-center mb-4 animate-pulse">
-          <Gift size={42} weight="fill" color="#000" />
+        <div className="mx-auto w-14 h-14 rounded-full bg-[#d4ff00] grid place-items-center mb-3 animate-pulse">
+          <Gift size={28} weight="fill" color="#000" />
         </div>
 
-        <h2 className="font-display font-black text-3xl uppercase tracking-tighter">
+        <h2 className="font-display font-black text-2xl uppercase tracking-tighter">
           {t("common.welcomeBonus")}
         </h2>
-        <p className="text-zinc-400 mt-2">
+        <p className="text-zinc-400 text-xs mt-1">
           {lang === "es"
             ? "Te damos coins gratis para empezar a jugar."
             : "Free coins to get you started."}
         </p>
 
-        <div className="my-6 inline-flex items-center gap-3 px-6 py-4 rounded-xl bg-[#d4ff00]/10 border border-[#d4ff00]">
-          <Coins size={36} weight="fill" color="#d4ff00" />
+        <div className="my-4 inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#d4ff00]/10 border border-[#d4ff00]/30">
+          <Coins size={24} weight="fill" color="#d4ff00" />
           <div>
-            <div className="text-xs text-zinc-400 uppercase tracking-wider font-bold">{t("common.youReceived")}</div>
-            <div className="font-mono font-black text-4xl text-[#d4ff00] leading-none">+100</div>
+            <div className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold leading-none mb-1">{t("common.youReceived")}</div>
+            <div className="font-mono font-black text-2xl text-[#d4ff00] leading-none">+100</div>
           </div>
         </div>
 
-        <p className="text-xs text-zinc-500 mb-4">
+        <p className="text-[10px] text-zinc-500 mb-4 leading-relaxed">
           {lang === "es"
             ? "Inicia sesión cada día para sumar coins extra con el sistema de rachas."
             : "Log in daily for extra coins via the streak system."}
         </p>
 
-        <button onClick={close} className="btn-primary w-full justify-center" data-testid="welcome-cta">
+        <button onClick={close} className="btn-primary w-full justify-center !py-2 text-xs font-black uppercase tracking-wider" style={{ backgroundColor: '#d4ff00', color: 'black' }}>
           {lang === "es" ? "¡A jugar!" : "Let's go!"}
         </button>
       </div>
