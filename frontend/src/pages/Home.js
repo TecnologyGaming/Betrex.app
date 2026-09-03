@@ -7,6 +7,7 @@ import PredictionCard from "../components/PredictionCard";
 import MarketCard from "../components/MarketCard";
 import Banner from "../components/Banner";
 import StreakWidget from "../components/StreakWidget";
+import FakeWinners from "../components/FakeWinners";
 import { ArrowRight, Lightning, SoccerBall, Horse, Baseball, Ticket, ChartLineUp, Crown } from "@phosphor-icons/react";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1769120062656-23adba3790b3?crop=entropy&cs=srgb&fm=jpg&w=2000&q=80";
@@ -120,26 +121,34 @@ export default function Home() {
         </div>
       </section>
 
-      {/* LATEST PICKS */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="flex items-end justify-between mb-8">
-          <div>
-            <span className="label">02 / Feed</span>
-            <h2 className="font-display font-black text-3xl sm:text-5xl uppercase tracking-tighter">
-              {t("home.latestPicks")}
-            </h2>
+      {/* LATEST PICKS & RECENT WINNERS FEED */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid lg:grid-cols-12 gap-8 items-start">
+        {/* Picks Feed */}
+        <div className="lg:col-span-8 space-y-8">
+          <div className="flex items-end justify-between">
+            <div>
+              <span className="label">02 / Feed</span>
+              <h2 className="font-display font-black text-3xl sm:text-5xl uppercase tracking-tighter">
+                {t("home.latestPicks")}
+              </h2>
+            </div>
+            <Link to="/predictions" className="btn-outline !py-2">
+              {lang === "es" ? "Todos" : "All"} <ArrowRight size={14} />
+            </Link>
           </div>
-          <Link to="/predictions" className="btn-outline !py-2">
-            {lang === "es" ? "Todos" : "All"} <ArrowRight size={14} />
-          </Link>
+          {picks.length === 0 ? (
+            <div className="pz-card p-10 text-center text-zinc-400">{t("predictions.empty")}</div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {picks.slice(0, 4).map((p) => <PredictionCard key={p.prediction_id} p={p} />)}
+            </div>
+          )}
         </div>
-        {picks.length === 0 ? (
-          <div className="pz-card p-10 text-center text-zinc-400">{t("predictions.empty")}</div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {picks.map((p) => <PredictionCard key={p.prediction_id} p={p} />)}
-          </div>
-        )}
+
+        {/* Recent Winners Feed (Rayo de casino real) */}
+        <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-24">
+          <FakeWinners />
+        </div>
       </section>
 
       {/* HOT MARKETS */}
